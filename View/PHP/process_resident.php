@@ -12,14 +12,10 @@ if (session_status() === PHP_SESSION_NONE) {
 
 /**
  * record_audit: Logs administrative actions into the database.
- * INTEGRATED: Now uses $_SESSION['admin_id'] from your login system.
  */
 function record_audit($conn, $admin_name, $action_type, $details) {
-    // 1. Get the REAL ID from your new login session. 
-    // Fallback to 1 ensures the script doesn't crash if the session is empty.
     $admin_id = $_SESSION['admin_id'] ?? 1; 
 
-    // FIXED: Uses 'admin_logs' table (plural)
     $stmt = $conn->prepare("INSERT INTO admin_logs (admin_id, action_type, details) VALUES (?, ?, ?)");
     
     if (!$stmt) {
@@ -28,18 +24,17 @@ function record_audit($conn, $admin_name, $action_type, $details) {
     }
 
     $stmt->bind_param("iss", $admin_id, $action_type, $details);
-    
     $success = $stmt->execute();
     $stmt->close();
     return $success;
 }
 
+// Get the input data once at the top
 $data = json_decode(file_get_contents("php://input"), true);
 $output = ["success" => false, "message" => "Server processed nothing"];
 
 if ($data) {
     $action = $data['action'] ?? '';
-    // Pulls the logged-in name from your session
     $current_admin = $_SESSION['admin_name'] ?? 'System';
 
     // ACTION: EDIT
@@ -54,7 +49,7 @@ if ($data) {
             );
             if ($stmt->execute()) {
                 $output = ["success" => true];
-                record_audit($conn, $current_admin, 'EDIT', "Modified: " . $data['buyer_name']);
+                record_audit($conn, $current_admin, 'UPDATED', "Modified: " . $data['buyer_name']);
             } else {
                 $output["message"] = $stmt->error;
             }
@@ -76,7 +71,7 @@ if ($data) {
             );
             if ($stmt->execute()) {
                 $output = ["success" => true];
-                record_audit($conn, $current_admin, 'ADD', "Added: " . $data['buyer_name']);
+                record_audit($conn, $current_admin, 'CREATED', "Added: " . $data['buyer_name']);
             } else {
                 $output["message"] = $stmt->error;
             }
@@ -86,30 +81,53 @@ if ($data) {
 
     // ACTION: DELETE
     else if ($action === 'delete') {
-        // Checking against 'admins' table for the auth_key (PIN)
-        $auth = $conn->prepare("SELECT admin_name FROM admins WHERE auth_key = ?");
-        $auth->bind_param("s", $data['admin_pin']);
-        $auth->execute();
-        $res = $auth->get_result();
-        
-        if ($row = $res->fetch_assoc()) {
-            $del = $conn->prepare("DELETE FROM residents WHERE resident_id = ?");
-            $del->bind_param("i", $data['id']);
-            if ($del->execute()) {
-                $output = ["success" => true];
-                record_audit($conn, $row['admin_name'], 'DELETE', "Deleted ID: " . $data['id']);
-            }
-            $del->close();
+        $currentAdminId = $_SESSION['admin_id'] ?? 0;
+        $providedPin = $data['admin_pin'] ?? '';
+        $residentId = $data['id'] ?? 0;
+
+        // 1. Fetch the name using 'buyer_name' (matches your ADD/EDIT columns)
+        $getName = $conn->prepare("SELECT buyer_name FROM residents WHERE resident_id = ?");
+        $getName->bind_param("i", $residentId);
+        $getName->execute();
+        $nameRes = $getName->get_result();
+        $resident = $nameRes->fetch_assoc();
+        $getName->close();
+
+        if (!$resident) {
+            $output = ["success" => false, "message" => "Resident not found (ID: $residentId)"];
         } else {
-            $output = ["success" => false, "message" => "Invalid PIN"];
+            $residentName = $resident['buyer_name'];
+
+            // 2. Security Check
+            $auth = $conn->prepare("SELECT admin_name FROM admins WHERE admin_id = ? AND auth_key = ?");
+            $auth->bind_param("is", $currentAdminId, $providedPin);
+            $auth->execute();
+            $authRes = $auth->get_result();
+            
+            if ($row = $authRes->fetch_assoc()) {
+                // 3. Perform Delete
+                $del = $conn->prepare("DELETE FROM residents WHERE resident_id = ?");
+                $del->bind_param("i", $residentId);
+                
+                if ($del->execute()) {
+                    $auditDetail = "Deleted Resident: " . $residentName . " (ID: " . $residentId . ")";
+                    record_audit($conn, $row['admin_name'], 'DELETED', $auditDetail);
+                    $output = ["success" => true];
+                } else {
+                    $output = ["success" => false, "message" => "Database delete failed."];
+                }
+                $del->close();
+            } else {
+                $output = ["success" => false, "message" => "Invalid PIN. Use your own Master Key."];
+            }
+            $auth->close();
         }
-        $auth->close();
     }
 }
 
-// FINAL CLEANUP: Flush the buffer to ensure only JSON is sent
+// FINAL CLEANUP
 while (ob_get_level()) { ob_end_clean(); }
 header('Content-Type: application/json');
 echo json_encode($output);
 $conn->close();
-exit;
+exit;   

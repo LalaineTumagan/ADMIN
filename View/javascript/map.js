@@ -1,4 +1,7 @@
-// map.js
+/* ==========================================================
+    MAP.JS - DYNAMIC MULTI-PROJECT LOADER
+    Supports ID (Database) and Name (Map Configuration)
+========================================================== */
 document.addEventListener("DOMContentLoaded", () => {
     const mapContainer = document.getElementById('mapContainer');
     const locationSelect = document.getElementById('locationSelect'); 
@@ -13,30 +16,35 @@ document.addEventListener("DOMContentLoaded", () => {
         const mapControls = document.getElementById('map-controls');
         if (mapControls) mapControls.style.display = 'none';
 
-        console.log("Map closed, but analytics remain visible.");
+        console.log("Map closed.");
     };
 
+    // --- MAIN RENDER LOGIC ---
     window.handleLocationChange = function() {
-        if (!locationSelect || !locationSelect.value) return;
+        if (!locationSelect || !locationSelect.value) {
+            alert("Please select a subdivision first.");
+            return;
+        }
         
-        // 1. Get the Raw ID from the dropdown (e.g., "2")
+        // 1. Get the Numeric ID (e.g., "14") for Database/Resident lookups
         const projectID = locationSelect.value.trim(); 
 
-        // 2. TRANSLATE ID TO NAME (For MAPS and PROJECT_MARKERS coordinate lookup)
-        // We use the ID for the database, but the Name for the Map Image and Pins coordinates.
-        let projectKey = projectID;
-        if (projectID === "2") {
-            projectKey = "PADRE GARCIA";
-        }
+        // 2. Get the Name Key (e.g., "VHS PH 2") from the data-name attribute
+        // This is the bridge between the ID and the MAPS/PROJECT_MARKERS objects
+        const selectedOption = locationSelect.options[locationSelect.selectedIndex];
+        const projectKey = selectedOption.getAttribute('data-name'); 
 
+        console.log(`System: Loading ID ${projectID} | Map Key: ${projectKey}`);
+
+        // 3. Look up map data using the NAME key
         const projectData = (typeof MAPS !== 'undefined') ? MAPS[projectKey] : null;
 
         if (!projectData) {
             console.error("Project Key not found in MAPS:", projectKey);
             if (typeof MAPS !== 'undefined') {
-                console.log("Available keys in MAPS object:", Object.keys(MAPS));
+                console.log("Available keys in MAPS:", Object.keys(MAPS));
             }
-            alert(`Map data not found for "${projectKey}". Please check your MAPS configuration.`);
+            alert(`Map configuration not found for "${projectKey}". Please check your database paths.`);
             return;
         }
 
@@ -49,7 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const analyticsBox = document.getElementById('project-analytics-box');
         if (analyticsBox) analyticsBox.style.display = 'block';
 
-        // Initialize Map if it doesn't exist
+        // --- INITIALIZE LEAFLET ---
         if (!map && mapContainer) {
             map = L.map('mapContainer', { 
                 crs: L.CRS.Simple, 
@@ -59,7 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             
             map.on('click', function(e) {
-                console.log("Coordinates for marker.js:", [Math.round(e.latlng.lat), Math.round(e.latlng.lng)]);
+                console.log("Coords for marker.js:", [Math.round(e.latlng.lat), Math.round(e.latlng.lng)]);
             });
         }
 
@@ -67,50 +75,49 @@ document.addEventListener("DOMContentLoaded", () => {
         if (currentLayer && map) map.removeLayer(currentLayer);
         if (markersLayer && map) map.removeLayer(markersLayer);
 
-        // Add Image Overlay
+        // --- ADD IMAGE OVERLAY ---
+        // Uses the size and image path provided by get_maps_data.php
         const bounds = [[0, 0], [projectData.size[1], projectData.size[0]]];
         currentLayer = L.imageOverlay(projectData.image, bounds).addTo(map);
         map.fitBounds(bounds);
 
-        // Update Charts (Using the Name key)
+        // Update Charts (Using the Name key for visual labeling)
         if (typeof window.updateProjectCharts === "function") {
             window.updateProjectCharts(projectKey);
         }
 
-        // Create new Layer Group for markers
+        // --- RENDER MARKERS ---
         markersLayer = L.layerGroup().addTo(map);
         
-        // Load Markers using the Name key (e.g., "PADRE GARCIA")
+        // Load marker coordinates using the Name key
         const projectMarkers = (typeof PROJECT_MARKERS !== 'undefined') ? PROJECT_MARKERS[projectKey] || [] : [];
-        console.log(`Found ${projectMarkers.length} markers for ${projectKey}`);
+        console.log(`Rendering ${projectMarkers.length} markers for ${projectKey}`);
 
         projectMarkers.forEach(markerData => {
             const lotNum = String(markerData.lot).trim(); 
             const blockNum = String(markerData.block).trim();
             
-            // --- RESIDENT LOOKUP (Using projectID: 2) ---
-            // This ensures it matches the subdivision_id in your SQL database
+            // Resident Lookup: Uses the Numeric ID (projectID) to match the database
             const resident = (typeof window.getResidentByLotBlock === "function")
                 ? window.getResidentByLotBlock(lotNum, blockNum, projectID) 
                 : null;
 
-            // COLOR LOGIC
-            let pinClass = "vacant-lot"; // Default: Orange
+            // Pin Color Logic based on resident status
+            let pinClass = "vacant-lot"; 
             let statusText = "Vacant";
 
             if (resident) {
                 const status = String(resident.resident_status || "").toLowerCase().trim();
-                
                 if (status === "active") {
-                    pinClass = "active-resident"; // Green
+                    pinClass = "active-resident"; 
                     statusText = "Occupied (Active)";
                 } else {
-                    pinClass = "inactive-resident"; // Red
+                    pinClass = "inactive-resident"; 
                     statusText = `Occupied (${resident.resident_status})`;
                 }
             }
 
-            // Create the Pin Icon
+            // Create Icon
             const icon = L.divIcon({
                 className: `custom-pin ${pinClass}`,
                 html: `<div class="pin"></div>`, 
@@ -121,14 +128,13 @@ document.addEventListener("DOMContentLoaded", () => {
             // Add Marker to Map
             const marker = L.marker(markerData.pos, { icon });
             
-            // Build Tooltip
             const buyerName = resident ? `<br><b>${resident.buyer_name}</b>` : "";
             marker.bindTooltip(`Block ${blockNum} Lot ${lotNum} ${buyerName} <br> ${statusText}`);
             
             marker.on('click', (e) => {
                 L.DomEvent.stopPropagation(e); 
                 if (typeof window.openLotModal === "function") {
-                    // CRITICAL: Pass projectID (2) so the modal knows how to find the resident again
+                    // Pass the Database ID so the modal pulls correct records
                     window.openLotModal(projectID, blockNum, lotNum);
                 }
             });
@@ -136,7 +142,8 @@ document.addEventListener("DOMContentLoaded", () => {
             markersLayer.addLayer(marker);
         });
 
-        // Smooth scroll to map
+        // Ensure map renders correctly and scroll into view
+        map.invalidateSize();
         if (mapContainer) {
             mapContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }

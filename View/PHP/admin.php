@@ -1,41 +1,51 @@
 <?php
 /**
- * 1. SECURITY & CACHE CONTROL
- * This must be the very first thing in the file.
+ * 1. SESSION & CACHE SECURITY
  */
 session_start();
 
-// Redirect to login if not authenticated
+// Redirect if not logged in
 if (!isset($_SESSION['admin_id'])) {
     header("Location: login.php");
     exit();
 }
 
-// Prevent browser from caching this page (Fixes the "Back Button" security risk)
+// Global Role Normalization (Fixes button visibility case-sensitivity)
+$sessionRole = isset($_SESSION['authority_level']) ? strtolower(trim($_SESSION['authority_level'])) : '';
+$currentSessionId = isset($_SESSION['admin_id']) ? (int)$_SESSION['admin_id'] : 0;
+
+// Security: Prevent browser back-button caching
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
 
 /**
- * 2. YOUR ORIGINAL DATABASE LOGIC (UNTOUCHED)
+ * 2. DATABASE INITIALIZATION
  */
 include('db_connect.php');
 
-// 1. Fetch Global Stats
+/**
+ * 3. ANALYTICS & DASHBOARD STATS
+ */
+// Total Resident Count
 $resCount = $conn->query("SELECT COUNT(*) as total FROM residents");
 $totalResidents = ($resCount) ? $resCount->fetch_assoc()['total'] : 0;
 
+// Active Resident Count
 $activeCount = $conn->query("SELECT COUNT(*) as total FROM residents WHERE resident_status = 'Active'");
 $activeResidents = ($activeCount) ? $activeCount->fetch_assoc()['total'] : 0;
 
-// Corrected sum from utility_bills table
+// Revenue Calculation (Utility Bills)
 $moneyQuery = $conn->query("SELECT SUM(total_bill) as total FROM utility_bills");
 $totalMoney = ($moneyQuery && $row = $moneyQuery->fetch_assoc()) ? ($row['total'] ?? 0) : 0;
 
-// 2. Fetch Subdivisions for dropdowns
+/**
+ * 4. DATA FETCHING (SUBDIVISIONS & RESIDENTS)
+ */
+// Subdivisions for dropdowns
 $projects = $conn->query("SELECT * FROM subdivisions ORDER BY project_name ASC");
 
-// 3. Fetching all 17 fields + the LATEST utility data
+// Comprehensive Resident & Latest Utility Data (17 Fields)
 $resQuery = $conn->query("
     SELECT 
         r.resident_id, r.subdivision_id, s.project_name as project, 
@@ -62,7 +72,10 @@ if ($resQuery) {
     }
 }
 
-// 4. Fetch Admin Logs (RENAMED TO $audit_logs TO FIX THE ERROR)
+/**
+ * 5. SYSTEM LOGS & ADMINISTRATIVE DATA
+ */
+// Audit Logs (Latest 100 actions)
 $audit_logs = $conn->query("
     SELECT 
         l.log_id, l.admin_id, l.action_type, l.details, l.timestamp, 
@@ -78,12 +91,14 @@ if ($audit_logs && $audit_logs->num_rows > 0) {
     while($row = $audit_logs->fetch_assoc()) {
         $auditLogsArray[] = $row;
     }
-    // RESET THE POINTER so the HTML table at line 399 can start from the first row
-    $audit_logs->data_seek(0);
+    $audit_logs->data_seek(0); // Reset pointer for HTML rendering
 }
 
+// Administrative Users Management
+$admins = $conn->query("SELECT admin_id, admin_name, authority_level, admin_status, auth_key FROM admins ORDER BY admin_id ASC");
+
 /**
- * Helper function to record system actions
+ * 6. SYSTEM UTILITIES
  */
 function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
     $ip = $_SERVER['REMOTE_ADDR'];
@@ -112,10 +127,10 @@ function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
         <ul class="left-menu-nav">
             <li class="left-menu-item active" data-page="dashboard">DASHBOARD</li>
             <li class="left-menu-item" data-page="residents">RESIDENTS</li>
-            <li class="left-menu-item" data-page="analytics">ADMIN MANAGEMENT</li>
+            <li class="left-menu-item" data-page="admins">ADMIN MANAGEMENT</li>
             <li class="left-menu-item" data-page="reports">REPORT</li>
 
-            <li class="left-menu-item logout-item" onclick="window.location.href='logout.php'">LOG OUT</li>
+            <li class="left-menu-item logout-item" onclick="confirmLogout(event)">LOG OUT</li>
         </ul>
     </div>
 
@@ -398,75 +413,77 @@ function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
             <p style="color: #64748b; font-size: 13px; margin: 0;">Track all administrative changes and system activities.</p>
         </div>
         
-        <div style="display: flex; gap: 10px;">
-            <input type="text" 
-                   onkeyup="filterAuditLog(this.value)" 
-                   placeholder="Search logs..." 
-                   style="padding: 10px 15px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 13px; width: 220px; outline: none;">
-            
-            <button onclick="exportAuditLog()" 
-                    style="padding: 10px 18px; background: #d49006; color: #0f172a; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 13px; transition: 0.2s;">
-                Export CSV
-            </button>
-        </div>
+        <button onclick="exportAuditLog()" 
+                style="padding: 10px 18px; background: #d49006; color: #0f172a; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 13px; transition: 0.2s;">
+            Export CSV
+        </button>
     </div>
 
+    <div class="audit-toolbar" style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: flex-end; background: #1e293b; padding: 15px; border-radius: 10px; border: 1px solid #334155;">
+        
+        <div class="filter-group">
+            <label style="display:block; font-size:10px; color:#d49006; font-weight:800; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Search Details</label>
+            <input type="text" id="auditSearch" onkeyup="filterAuditLog()" placeholder="Search content..." 
+                   style="padding: 8px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #f8fafc; font-size: 13px; width: 200px; outline: none;">
+        </div>
+
+        <div class="filter-group">
+            <label style="display:block; font-size:10px; color:#d49006; font-weight:800; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Admin</label>
+            <select id="filterAdmin" onchange="filterAuditLog()" 
+                    style="padding: 8px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #f8fafc; font-size: 13px; width: 140px; outline: none;">
+                <option value="">All Admins</option>
+                <?php 
+                // Dynamically populate admin names for the filter dropdown
+                if(isset($admins)):
+                    $admins->data_seek(0);
+                    while($adm = $admins->fetch_assoc()): ?>
+                        <option value="<?php echo htmlspecialchars($adm['admin_name']); ?>">
+                            <?php echo htmlspecialchars($adm['admin_name']); ?>
+                        </option>
+                <?php endwhile; endif; ?>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label style="display:block; font-size:10px; color:#d49006; font-weight:800; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Action Type</label>
+            <select id="filterAction" onchange="filterAuditLog()" 
+                    style="padding: 8px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #f8fafc; font-size: 13px; width: 130px; outline: none;">
+                <option value="">All Actions</option>
+                <option value="CREATE">CREATE</option>
+                <option value="UPDATE">UPDATE</option>
+                <option value="DELETE">DELETE</option>
+                <option value="LOGIN">LOGIN</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label style="display:block; font-size:10px; color:#d49006; font-weight:800; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Year</label>
+            <select id="filterYear" onchange="filterAuditLog()" 
+                    style="padding: 8px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #f8fafc; font-size: 13px; width: 100px; outline: none;">
+                <option value="">All Years</option>
+                <?php for($y = date("Y"); $y >= 2024; $y--): ?>
+                    <option value="<?php echo $y; ?>"><?php echo $y; ?></option>
+                <?php endfor; ?>
+            </select>
+        </div>
+
+        <button onclick="filterAuditLog()" class="btn-load" style="height: 35px; padding: 0 20px; font-size: 11px;">Reset View</button>
+    </div>
     <div class="audit-table-wrapper">
         <table class="audit-log-table" id="auditLogTable">
             <thead>
                 <tr>
-                    <th>Timestamp</th>
-                    <th>Admin Name</th>
+                    <th style="width: 80px;">Log ID</th>
+                    <th>Admin Details</th>
                     <th>Action</th>
                     <th>Details</th>
+                    <th>Timestamp</th>
                 </tr>
             </thead>
             <tbody id="auditLogBody">
-                <?php 
-                if ($audit_logs && $audit_logs->num_rows > 0):
-                    $audit_logs->data_seek(0); 
-                    while($log = $audit_logs->fetch_assoc()): 
-                        // MAPPING DATABASE ACTIONS TO YOUR CSS CLASSES
-                        $rawAction = strtoupper($log['action_type']);
-                        $classMap = [
-                            'ADD'    => 'create',
-                            'INSERT' => 'create',
-                            'EDIT'   => 'update',
-                            'UPDATE' => 'update',
-                            'DELETE' => 'delete',
-                            'REMOVE' => 'delete',
-                            'LOGIN'  => 'login'
-                        ];
-                        $actionClass = $classMap[$rawAction] ?? 'login';
-                ?>
+                <?php if (!$audit_logs || $audit_logs->num_rows === 0): ?>
                     <tr>
-                        <td class="time-cell">
-                            <?php echo date('M d, Y | h:i A', strtotime($log['timestamp'])); ?>
-                        </td>
-                        <td>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span class="admin-badge">ID: <?php echo $log['admin_id']; ?></span>
-                                <strong style="color: #f8fafc; font-size: 13px;">
-                                    <?php echo htmlspecialchars($log['admin_name'] ?? 'System'); ?>
-                                </strong>
-                            </div>
-                        </td>
-                        <td>
-                            <span class="action-tag <?php echo $actionClass; ?>">
-                                <?php echo $rawAction; ?>
-                            </span>
-                        </td>
-                        <td class="details-cell" style="max-width: 400px; color: #cbd5e1; line-height: 1.5;">
-                            <?php echo htmlspecialchars($log['details']); ?>
-                        </td>
-                    </tr>
-                <?php 
-                    endwhile; 
-                else: 
-                ?>
-                    <tr>
-                        <td colspan="4" style="text-align: center; padding: 80px; color: #64748b;">
-                            <div style="font-size: 24px; margin-bottom: 10px;">📋</div>
+                        <td colspan="5" style="text-align: center; padding: 80px; color: #64748b;">
                             No activity logs found in the database.
                         </td>
                     </tr>
@@ -476,22 +493,211 @@ function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
     </div>
 </section>
 
-    <section id="section-analytics" class="app-page">
-                <div class="page-header"><h2>Analytics</h2></div>
-            </section>
+    <section id="section-admins" class="app-page">
+    <div class="page-header">
+        <div class="header-info">
+            <h2>Admin Management</h2>
+            <p>Master admins can manage all accounts. Staff can only edit their own profile.</p>
+        </div>
+        
+        <?php 
+        // Normalize role for comparison
+        $sessionRole = isset($_SESSION['authority_level']) ? strtolower(trim($_SESSION['authority_level'])) : '';
+        $iAmMaster = ($sessionRole === 'master');
 
-    </main>
+        if($iAmMaster): 
+        ?>
+        <button type="button" class="btn-add-admin" onclick="openAddAdminModal()">
+            <i class="fas fa-plus"></i> Register New Admin
+        </button>
+        <?php endif; ?>
+    </div>
 
+    <div class="admin-list-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Access Level</th>
+                    <th>Status</th>
+                    <th style="text-align: center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="adminTableBody">
+                <?php if(isset($admins) && $admins->num_rows > 0): ?>
+                    <?php 
+                    $admins->data_seek(0); 
+                    while($row = $admins->fetch_assoc()): 
+                        $rowId = (int)$row['admin_id'];
+                        $sessId = (int)$_SESSION['admin_id'];
+                        
+                        $isMe = ($rowId === $sessId);
+                        $rowLevelClean = strtolower(trim($row['authority_level']));
+                        
+                        // UI Classes based on your DB values
+                        $levelClass = ($rowLevelClean === 'master') ? 'level-master' : 'level-staff';
+                        
+                        // FIXED STATUS LOGIC: Checking for 'active' instead of 'master'
+                        $status = $row['admin_status'] ?? 'Deactivated'; 
+                        $statusClass = (strtolower(trim($status)) === 'active') ? 'status-active' : 'status-inactive';
+
+                        // Safe JSON for Edit Function
+                        $adminJson = json_encode([
+                            'admin_id' => $row['admin_id'],
+                            'admin_name' => $row['admin_name'],
+                            'auth_key' => $row['auth_key'],
+                            'authority_level' => $row['authority_level'], 
+                            'admin_status' => $status
+                        ]);
+                    ?>
+                    <tr>
+                        <td class="admin-id-badge">#<?php echo $row['admin_id']; ?></td>
+                        <td class="admin-name-cell">
+                            <strong><?php echo htmlspecialchars($row['admin_name']); ?></strong>
+                            <?php if($isMe): ?>
+                                <span style="color: #3b82f6; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-left: 5px;">(You)</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <span class="level-tag <?php echo $levelClass; ?>">
+                                <?php echo htmlspecialchars($row['authority_level']); ?>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge <?php echo $statusClass; ?>">
+                                <?php echo htmlspecialchars($status); ?>
+                            </span>
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 10px; justify-content: center;">
+                                <?php if ($iAmMaster || $isMe): ?>
+                                    <button type="button" class="btn-edit-admin" onclick='editAdmin(<?php echo htmlspecialchars($adminJson, ENT_QUOTES, 'UTF-8'); ?>)'>
+                                        Edit
+                                    </button>
+                                    
+                                    <?php if ($iAmMaster && !$isMe): ?>
+                                        <button type="button" class="btn-delete-admin" 
+                                                onclick="confirmDeleteAdmin(<?php echo $row['admin_id']; ?>, '<?php echo addslashes($row['admin_name']); ?>')">
+                                            Delete
+                                        </button>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <span style="color: #64748b; font-size: 11px;">Restricted</span>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endwhile; ?>
+                <?php else: ?>
+                    <tr><td colspan="5" style="text-align:center; padding: 30px;">No administrators found.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<div id="adminAccountModal" class="modal-overlay">
+    <div class="admin-modal-content">
+        <div class="admin-modal-header">
+            <h3 id="adminModalTitle">Register New Admin</h3>
+        </div>
+        
+        <form id="adminAccountForm" onsubmit="event.preventDefault(); saveAdminAccount();">
+            <input type="hidden" id="modalAdminId">
+            
+            <div class="admin-form-group">
+                <label>Username</label>
+                <input type="text" id="modalAdminName" class="admin-form-input" required>
+            </div>
+
+            <div class="admin-form-group">
+                <label>Account Status</label>
+                <select id="modalAdminStatus" class="admin-form-input">
+                    <option value="active">Active</option>
+                    <option value="deactivated">Deactivated</option>
+                </select>
+            </div>
+
+            <div class="admin-form-group">
+                <label>Authority Level</label>
+                <select id="modalAuthLevel" class="admin-form-input" <?php echo (!$iAmMaster) ? 'disabled' : ''; ?>>
+                    <option value="Staff">Staff</option>
+                    <option value="Master">Master</option>
+                </select>
+            </div>
+            
+            <div class="admin-form-group">
+                <label>Master PIN / Auth Key</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="password" id="modalAdminKey" class="admin-form-input" maxlength="6" required>
+                    <button type="button" onclick="toggleField('modalAdminKey', this)" style="background:none; border:1px solid #334155; color:#94a3b8; border-radius:4px; padding:0 10px; cursor:pointer;">SHOW</button>
+                </div>
+            </div>
+
+            <div class="admin-form-group">
+                <label>Login Password</label>
+                <input type="password" id="modalAdminPassword" class="admin-form-input" placeholder="New password or leave blank">
+            </div>
+
+            <div class="admin-modal-footer">
+                <button type="button" class="btn-cancel" onclick="closeAdminModal()">Cancel</button>
+                <button type="submit" class="btn-save-admin">Save Account</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="adminSecurityModal" class="modal-overlay">
+    <div class="admin-modal-content" style="max-width: 400px;">
+        <div class="admin-modal-header">
+            <h3 style="color: #ef4444;">Confirm Admin Deletion</h3>
+        </div>
+        <div style="padding: 20px;">
+            <p>You are about to permanently delete admin: <b id="targetAdminNameText"></b></p>
+            <p style="font-size: 13px; color: #64748b; margin-top: 10px;">To proceed, please enter <b>YOUR</b> Master Authorization Key:</p>
+            
+            <input type="hidden" id="deleteTargetId">
+            
+            <div class="admin-form-group" style="margin-top: 15px;">
+                <input type="password" id="masterVerifyKey" class="admin-form-input" placeholder="Enter Master Key" maxlength="6">
+            </div>
+        </div>
+        <div class="admin-modal-footer">
+            <button type="button" class="btn-cancel" onclick="closeAdminSecurityModal()">Cancel</button>
+            <button type="button" class="btn-save-admin" style="background: #ef4444;" onclick="executeVerifiedDelete()">Delete Permanent</button>
+        </div>
+    </div>
+</div>
+
+
+
+<div id="logoutModal" class="modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(15, 23, 42, 0.9); backdrop-filter:blur(5px); z-index:10001; justify-content:center; align-items:center;">
+    <div style="background:#1e293b; border:1px solid #334155; padding:30px; border-radius:15px; width:350px; text-align:center; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+        <div style="font-size: 40px; margin-bottom: 15px;">🚪</div>
+        <h3 style="color:#f8fafc; margin-bottom:10px; font-weight:800; text-transform:uppercase; letter-spacing:1px;">Confirm Logout</h3>
+        <p style="color:#94a3b8; font-size:14px; margin-bottom:25px;">Are you sure you want to end your session?</p>
+        
+        <div style="display:flex; gap:10px;">
+            <button onclick="closeLogoutModal()" style="flex:1; padding:12px; background:#334155; color:#f8fafc; border:none; border-radius:8px; cursor:pointer; font-weight:700; transition:0.2s;">CANCEL</button>
+            <button onclick="processLogout()" style="flex:1; padding:12px; background:#d49006; color:#0f172a; border:none; border-radius:8px; cursor:pointer; font-weight:800; transition:0.2s;">LOG OUT</button>
+        </div>
+    </div>
+</div>
 
 
     <script>
-    // Residents Data
-    window.residents = <?php echo json_encode($residentsArray); ?>;
+    // Residents Data (Fail-safe: defaults to empty array if null)
+    window.residents = <?php echo json_encode($residentsArray ?? []); ?>;
     
-    // Audit Logs Data for Reports
-    window.auditLogs = <?php echo json_encode($auditLogsArray); ?>;
+    // Audit Logs Data (Using the processed array from your PHP update)
+    window.auditLogs = <?php echo json_encode($auditLogsArray ?? []); ?>;
     
-    console.log("System Ready: " + window.residents.length + " residents and " + window.auditLogs.length + " logs loaded.");
+    // Debugging Console - Helps verify data load on page start
+    console.log("System Ready: " + 
+        (window.residents ? window.residents.length : 0) + " residents and " + 
+        (window.auditLogs ? window.auditLogs.length : 0) + " logs loaded."
+    );
 </script>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -500,12 +706,16 @@ function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
 <script src="get_maps_data.php"></script> 
 
 <script src="../javascript/marker.js"></script>
+<script src="../javascript/ui_utils.js"></script>
 <script src="../javascript/mapModal.js"></script>
 <script src="../javascript/residentsManagement.js"></script>
+<script src="../javascript/adminManagement.js"></script>
 <script src="../javascript/auditReports.js"></script>
 <script src="../javascript/projectAnalytics.js"></script>
 <script src="../javascript/menu.js"></script> 
 <script src="../javascript/map.js"></script>
+<script src="../javascript/logOut.js"></script>
+
 
 </body>
 </html>

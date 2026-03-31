@@ -1,0 +1,215 @@
+/* login_style.css */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f5f5f5;
+}
+
+.page-wrapper {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f07e13 0%, #e2ae02 50%, #e0e0e0 100%);
+    padding: 20px;
+}
+
+.login-container {
+    display: flex;
+    width: 100%;
+    max-width: 900px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    min-height: 550px; /* Locked height from original design */
+}
+
+/* Left Panel - Login Form */
+.login-panel {
+    flex: 1;
+    background: #0f172a; /* Dark Slate Theme */
+    padding: 50px 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    z-index: 2;
+}
+
+.accent-bar {
+    position: absolute;
+    top: 0; 
+    left: 0; 
+    right: 0;
+    height: 5px;
+    background: #d49006; /* Primary Gold/Orange */
+}
+
+.logo-section {
+    margin-bottom: 40px;
+    display: flex;
+    align-items: center;
+}
+
+.logo-img {
+    height: 50px;
+    width: auto;
+    object-fit: contain;
+    /* Keeps logo white on dark background; remove if your logo is already colored */
+    filter: brightness(0) invert(1); 
+}
+
+h1 { 
+    color: #e2e8f0; 
+    font-size: 32px; 
+    font-weight: 700; 
+    margin-bottom: 5px;
+}
+
+.welcome-text { 
+    color: #94a3b8; 
+    font-size: 16px; 
+    margin-bottom: 40px; 
+    text-transform: uppercase;
+}
+
+/* Form Elements */
+.login-form { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 20px; 
+}
+
+.login-form input[type="text"], 
+.login-form input[type="password"] {
+    width: 100%;
+    padding: 15px 20px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    background: #1e293b;
+    color: #e2e8f0;
+    outline: none;
+    transition: box-shadow 0.3s ease;
+}
+
+.login-form input:focus {
+    box-shadow: 0 0 0 2px #d49006;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: -5px;
+}
+
+.remember-me input {
+    accent-color: #d49006;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.remember-me label {
+    color: #94a3b8;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.login-btn {
+    width: 100%;
+    padding: 15px;
+    background: #d49006;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: background 0.3s ease, transform 0.1s ease;
+}
+
+.login-btn:hover { 
+    background: #b57805; 
+}
+
+.login-btn:active {
+    transform: scale(0.98);
+}
+
+/* Right Panel - Illustration */
+.illustration-panel {
+    flex: 1;
+    background: white;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+}
+
+.vertical-accent {
+    position: absolute;
+    top: 0; 
+    left: 0; 
+    bottom: 0;
+    width: 3px;
+    background: #d49006;
+    z-index: 1;
+}
+
+.illustration-img {
+    width: 100%;
+    height: 100%;
+    /* 'cover' ensures the image fills the 550px height perfectly */
+    object-fit: cover; 
+    display: block;
+}
+
+/* Footer Links */
+.login-footer { 
+    display: flex; 
+    justify-content: space-between; 
+    padding-top: 20px; 
+}
+
+.footer-link { 
+    color: #94a3b8; 
+    font-size: 13px; 
+    text-decoration: none; 
+    transition: color 0.2s ease;
+}
+
+.footer-link:hover {
+    color: #e2e8f0;
+}
+
+.super-admin { 
+    color: #d49006; 
+    font-weight: 600; 
+}
+
+.super-admin:hover {
+    color: #f59e0b;
+}
+
+/* Responsive Handling */
+@media (max-width: 768px) {
+    .login-container { 
+        flex-direction: column; 
+        max-width: 450px; 
+        min-height: auto;
+    }
+    .illustration-panel { 
+        display: none; 
+    }
+    .login-panel {
+        padding: 40px 30px;
+    }
+}

@@ -1,54 +1,92 @@
-/**
- * Imperial House - Audit Reports Logic
- */
+// --- DEFINE THESE AT THE TOP (Global Scope) ---
+let auditCurrentPage = 1; 
+const auditRowsPerPage = 10; 
+let filteredAuditData = [];
 
-function exportAuditLog() {
-    const tableBody = document.getElementById("auditLogBody");
-    if (!tableBody) return;
+// 1. Updated Filter Logic to handle Year, Action, Admin, and Search
+function filterAuditLog() {
+    auditCurrentPage = 1; 
+    
+    const yearVal = document.getElementById("filterYear").value;
+    const actionVal = document.getElementById("filterAction").value.toUpperCase();
+    const adminVal = document.getElementById("filterAdmin").value.toLowerCase();
+    const searchVal = document.getElementById("auditSearch").value.toLowerCase().trim();
 
-    const rows = tableBody.querySelectorAll("tr");
-    if (rows.length === 0 || rows[0].innerText.includes("No recent")) {
-        alert("No data available to export.");
+    const filteredLogs = window.auditLogs.filter(log => {
+        const logYear = new Date(log.timestamp).getFullYear().toString();
+        const logAdmin = String(log.display_name || "").toLowerCase();
+        const logAction = String(log.action_type || "").toUpperCase();
+        const logDetails = String(log.details || "").toLowerCase();
+
+        const matchesYear = yearVal === "" || logYear === yearVal;
+        const matchesAction = actionVal === "" || logAction === actionVal;
+        const matchesAdmin = adminVal === "" || logAdmin === adminVal;
+        const matchesSearch = searchVal === "" || logDetails.includes(searchVal);
+
+        return matchesYear && matchesAction && matchesAdmin && matchesSearch;
+    });
+
+    renderAuditTableWithData(filteredLogs);
+}
+
+// 2. Modified Render Function
+function renderAuditTableWithData(dataList) {
+    const tbody = document.getElementById("auditLogBody");
+    if (!tbody) return;
+
+    // PAGINATION MATH
+    const totalPages = Math.ceil(dataList.length / auditRowsPerPage);
+    const start = (auditCurrentPage - 1) * auditRowsPerPage; 
+    const end = start + auditRowsPerPage;
+    const paginatedLogs = dataList.slice(start, end);
+
+    tbody.innerHTML = "";
+
+    if (paginatedLogs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 40px; color: #94a3b8;">No matching logs found.</td></tr>`;
+        if (typeof renderAuditPagination === "function") renderAuditPagination(0, 0);
         return;
     }
 
-    let csvContent = "Admin ID,Action,Details,Timestamp\n";
-
-    rows.forEach(row => {
-        const cells = row.querySelectorAll("td");
-        if (cells.length >= 4) {
-            const adminId = cells[0].innerText.replace("#", "").trim();
-            const action = cells[1].innerText.trim();
-            // Replace commas with semicolons so the CSV doesn't break
-            const details = cells[2].innerText.replace(/,/g, ";").trim(); 
-            const timestamp = cells[3].innerText.trim();
-
-            csvContent += `"${adminId}","${action}","${details}","${timestamp}"\n`;
-        }
-    });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const date = new Date().toISOString().split('T')[0];
-    
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Imperial_House_Audit_Log_${date}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-// Named to match your <input onkeyup="filterAuditLog(this.value)">
-function filterAuditLog(query) {
-    const searchTerm = query.toLowerCase();
-    const rows = document.querySelectorAll("#auditLogBody tr");
-
-    rows.forEach(row => {
-        // If the row contains "No recent", don't hide it during search
-        if(row.innerText.includes("No recent")) return;
+    paginatedLogs.forEach(log => {
+        const tr = document.createElement("tr");
+        const rawAction = String(log.action_type || "").toUpperCase();
         
-        const rowText = row.innerText.toLowerCase();
-        row.style.display = rowText.includes(searchTerm) ? "" : "none";
+        // --- UPDATED COLOR CODING LOGIC ---
+        let actionClass = "login"; // Default (Gray/Dark)
+
+        if (['DELETED', 'DELETE', 'REMOVE', 'DELETE_ADMIN'].includes(rawAction)) {
+            actionClass = "delete"; // RED
+        } 
+        else if (['CREATED', 'ADD', 'CREATE', 'INSERT', 'CREATE_ADMIN', 'ADDED'].includes(rawAction)) {
+            actionClass = "create"; // GREEN
+        } 
+        else if (['UPDATED', 'EDIT', 'UPDATE', 'MODIFIED', 'UPDATE_ADMIN'].includes(rawAction)) {
+            actionClass = "update"; // BLUE (Ensure your CSS .update class is blue)
+        }
+
+        tr.innerHTML = `
+            <td style="color: #64748b;">#${log.log_id}</td>
+            <td>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="admin-badge">ID: ${log.admin_id}</span>
+                    <strong style="color: #f8fafc; font-size: 13px;">${log.display_name || 'System'}</strong>
+                </div>
+            </td>
+            <td><span class="action-tag ${actionClass}">${rawAction}</span></td>
+            <td class="details-cell" style="max-width: 400px; color: #cbd5e1; line-height: 1.5;">${log.details}</td>
+            <td class="time-cell">${log.timestamp}</td>
+        `;
+        tbody.appendChild(tr);
     });
+
+    if (typeof renderAuditPagination === "function") {
+        renderAuditPagination(auditCurrentPage, totalPages);
+    }
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    if (window.auditLogs) {
+        filterAuditLog(); 
+    }
+});

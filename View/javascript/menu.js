@@ -25,7 +25,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // CLICK HANDLER
     menuItems.forEach(item => {
         item.addEventListener('click', function() {
+            // --- FIX: Prevent Logout from triggering page switches ---
+            if (this.classList.contains('logout-item')) {
+                return; // Exit here; logOut.js will handle the modal
+            }
+
             const targetPage = this.getAttribute('data-page');
+            if (!targetPage) return; // Safety check
 
             // Update Sidebar UI
             menuItems.forEach(i => i.classList.remove('active'));
@@ -41,7 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update the Sidebar UI to match the saved page
     menuItems.forEach(item => {
-        if (item.getAttribute('data-page') === savedPage) {
+        const pageAttr = item.getAttribute('data-page');
+        if (pageAttr === savedPage) {
             item.classList.add('active');
         } else {
             item.classList.remove('active');

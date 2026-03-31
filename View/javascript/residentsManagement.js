@@ -5,67 +5,136 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!window.residents) window.residents = [];
 
     const searchInput = document.getElementById("residentSearch");
+    const addForm = document.getElementById("addResidentForm");
+    const editForm = document.getElementById("editResidentForm");
 
-    // ==========================================
-    // 1. Render Table Logic (All 17 Fields)
-    // ==========================================
-    function renderResidentsTable(filter = "") {
-        const tbody = document.getElementById("residentsTableBody");
-        if (!tbody) return;
+        // ==========================================
+        // 1. Render Table Logic (WITH PAGINATION)
+        // ==========================================
+        let currentPage = 1;
+        const rowsPerPage = 30;
 
-        const searchTerm = filter.toLowerCase().trim();
+        function renderResidentsTable(filter = "") {
+            const tbody = document.getElementById("residentsTableBody");
+            if (!tbody) return;
 
-        const filteredResidents = window.residents
-            .map((res, index) => ({ ...res, originalIndex: index }))
-            .filter(res => {
-                const name = String(res.buyer_name || "").toLowerCase();
-                const tct = String(res.tct_no || "").toLowerCase();
-                const acc = String(res.account_number || "").toLowerCase();
-                const project = String(res.subdivision_id || "").toLowerCase();
-                
-                return name.includes(searchTerm) || tct.includes(searchTerm) || 
-                       acc.includes(searchTerm) || project.includes(searchTerm);
+            const searchTerm = filter.toLowerCase().trim();
+
+            // 1. FILTER: Search through the ENTIRE list first
+            const filteredResidents = window.residents
+                .map((res, index) => ({ ...res, originalIndex: index }))
+                .filter(res => {
+                    const name = String(res.buyer_name || "").toLowerCase();
+                    const tct = String(res.tct_no || "").toLowerCase();
+                    const acc = String(res.account_number || "").toLowerCase();
+                    const projectID = String(res.subdivision_id || "").toLowerCase();
+                    const projectName = String(res.project || "").toLowerCase();
+                    
+                    return name.includes(searchTerm) || tct.includes(searchTerm) || 
+                        acc.includes(searchTerm) || projectID.includes(searchTerm) ||
+                        projectName.includes(searchTerm);
+                });
+
+            // 2. PAGINATION MATH
+            const totalPages = Math.ceil(filteredResidents.length / rowsPerPage);
+            
+            // Safety: If we search and the result has fewer pages, reset to page 1
+            if (currentPage > totalPages) currentPage = totalPages || 1;
+
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const paginatedItems = filteredResidents.slice(start, end);
+
+            tbody.innerHTML = "";
+
+            if (paginatedItems.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding: 40px; color: #94a3b8;">No residents found.</td></tr>`;
+                renderPaginationControls(0, 0); 
+                return;
+            }
+
+            paginatedItems.forEach(res => {
+                const tr = document.createElement("tr");
+                const statusVal = res.resident_status || "Active";
+                const statusClass = statusVal.toLowerCase().replace(/\s+/g, "-");
+                const displayProject = res.project || res.subdivision_id || "-";
+
+                tr.innerHTML = `
+                    <td>${res.resident_id}</td>
+                    <td>${displayProject}</td>
+                    <td>${res.phase || "-"}</td>
+                    <td>${res.block_no || "-"}</td>
+                    <td>${res.lot_no || "-"}</td>
+                    <td>${res.tct_no || "-"}</td>
+                    <td style="font-weight: 700; color: #f8fafc;">${res.buyer_name || "N/A"}</td>
+                    <td><span class="status-tag ${statusClass}">${statusVal}</span></td>
+                    <td>
+                        <div style="display: flex; gap: 5px;">
+                            <button class="btn-edit" onclick="editResident(${res.originalIndex})">Edit</button>
+                            <button class="btn-delete" onclick="deleteResident(${res.originalIndex})" style="background:#991b1b;">Del</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
             });
 
-        tbody.innerHTML = "";
-
-        if (filteredResidents.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding: 40px; color: #94a3b8;">No residents found.</td></tr>`;
-            return;
+            // Update the navigation buttons
+            renderPaginationControls(currentPage, totalPages);
         }
 
-        filteredResidents.forEach(res => {
-            const tr = document.createElement("tr");
-            const statusClass = (res.resident_status || "Active").toLowerCase().replace(/\s+/g, "-");
+        // NEW: Helper for creating pagination buttons
+        function renderPaginationControls(current, total) {
+            let controls = document.getElementById("paginationControls");
+            
+            // Create the container if it doesn't exist in your HTML
+            if (!controls) {
+                controls = document.createElement("div");
+                controls.id = "paginationControls";
+                controls.style = "display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 20px; padding: 15px;";
+                // Place it right after the table's parent container
+                const tableParent = document.querySelector(".table-container");
+                if(tableParent) tableParent.after(controls);
+            }
 
-            tr.innerHTML = `
-                <td>${res.resident_id}</td>
-                <td>${res.project || res.subdivision_id || "-"}</td>
-                <td>${res.phase || "-"}</td>
-                <td>${res.block_no || "-"}</td>
-                <td>${res.lot_no || "-"}</td>
-                <td>${res.tct_no || "-"}</td>
-                <td style="font-weight: 700; color: #f8fafc;">${res.buyer_name || "N/A"}</td>
-                <td><span class="status-tag ${statusClass}">${res.resident_status || "Active"}</span></td>
-                <td>
-                    <div style="display: flex; gap: 5px;">
-                        <button class="btn-edit" onclick="editResident(${res.originalIndex})">Edit</button>
-                        <button class="btn-delete" onclick="deleteResident(${res.originalIndex})" style="background:#991b1b;">Del</button>
-                    </div>
-                </td>
+            if (total <= 1) {
+                controls.innerHTML = "";
+                return;
+            }
+
+            controls.innerHTML = `
+                <button class="btn-edit" ${current === 1 ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} 
+                    onclick="window.changePage(${current - 1})">Previous</button>
+                <span style="color: #94a3b8;">Page <b>${current}</b> of ${total}</span>
+                <button class="btn-edit" ${current === total ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} 
+                    onclick="window.changePage(${current + 1})">Next</button>
             `;
-            tbody.appendChild(tr);
-        });
-    }
+        }
+
+        // Global function to handle page switching
+        window.changePage = function(newPage) {
+            currentPage = newPage;
+            const currentSearch = searchInput ? searchInput.value : "";
+            renderResidentsTable(currentSearch);
+            
+            // Optional: Scroll to top of table when page changes
+            const tableContainer = document.querySelector(".table-container");
+            if(tableContainer) tableContainer.scrollTop = 0;
+        };
 
     // ==========================================
-    // 2. Add Resident Logic
+    // 2. Add Resident Logic (FIXED DOUBLE SAVE)
     // ==========================================
-    const addForm = document.getElementById("addResidentForm");
     if (addForm) {
         addForm.addEventListener("submit", function (e) {
             e.preventDefault();
+
+            // Safety check: prevent double clicks
+            const submitBtn = addForm.querySelector('button[type="submit"]');
+            if (submitBtn.disabled) return;
             
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Saving...";
+
             const formData = {
                 action: 'add',
                 subdivision_id: document.getElementById("addProject").value,
@@ -93,21 +162,30 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .then(res => res.json())
             .then(data => {
-                if(data.success) location.reload(); 
-                else alert("Error: " + data.message);
+                if(data.success) {
+                    location.reload(); 
+                } else {
+                    alert("Error: " + data.message);
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "Save Resident";
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Save Resident";
             });
         });
     }
 
     // ==========================================
-    // 3. Edit Resident Logic (Fixed ID Mapping)
+    // 3. Edit Resident Logic
     // ==========================================
     window.editResident = function (index) {
-    const res = window.residents[index];
-    if (!res) return;
+        const res = window.residents[index];
+        if (!res) return;
 
         try {
-            // IDs must match exactly what we put in the HTML above
             document.getElementById("editResidentId").value = res.resident_id || "";
             document.getElementById("editProject").value = res.subdivision_id || "";
             document.getElementById("editTct").value = res.tct_no || "";
@@ -115,27 +193,23 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("editBlock").value = res.block_no || "";
             document.getElementById("editLot").value = res.lot_no || "";
             document.getElementById("editCreatedAt").value = res.created_at || "";
-
             document.getElementById("editName").value = res.buyer_name || "";
             document.getElementById("editNewBuyer").value = res.new_buyer_assumed || "";
             document.getElementById("editRep").value = res.buyer_representative || "";
             document.getElementById("editAccountNo").value = res.account_number || "";
-
             document.getElementById("editContact").value = res.contact_no || "";
             document.getElementById("editEmail").value = res.email_address || "";
             document.getElementById("editSocial").value = res.social_media || "";
             document.getElementById("editAccountAddress").value = res.account_address || "";
-
             document.getElementById("editStatus").value = res.resident_status || "Active";
             document.getElementById("editRemarks").value = res.remarks || "";
 
             document.getElementById("editResidentModal").classList.add("show");
         } catch (err) {
-            console.error("Mapping Error: Some fields might be missing in the HTML.", err);
+            console.error("Mapping Error:", err);
         }
     };
 
-    const editForm = document.getElementById("editResidentForm");
     if (editForm) {
         editForm.addEventListener("submit", function(e) {
             e.preventDefault();
@@ -169,20 +243,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ==========================================
-    // 4. Delete Logic (Admin PIN Protected)
+    // 4. Delete Logic (Fixed Security & Reload)
     // ==========================================
     let deleteResidentId = null; 
     
     window.deleteResident = function (index) {
         const res = window.residents[index];
         if (!res) return;
-        deleteResidentId = res.resident_id; 
-        document.getElementById("deleteResidentModal").classList.add("show");
-    };
 
-    // Bridging the old function name to the one used in the new modal
-    window.openDeleteConfirmation = function() {
-        deleteResidentId = document.getElementById("editResidentId").value;
+        deleteResidentId = res.resident_id; 
+
+        // FIX: Clear the PIN input EVERY time the modal opens
+        const pinInput = document.getElementById("adminPinInput");
+        if (pinInput) {
+            pinInput.value = "";
+            // Small timeout to focus the input after the modal animation starts
+            setTimeout(() => pinInput.focus(), 200); 
+        }
+
         document.getElementById("deleteResidentModal").classList.add("show");
     };
 
@@ -193,6 +271,10 @@ document.addEventListener("DOMContentLoaded", () => {
             alert("Please enter the Admin PIN");
             return;
         }
+
+        // Disable the confirm button so they can't click it twice
+        const confirmBtn = document.querySelector("#deleteResidentModal button[onclick='processDeleteResident()']");
+        if (confirmBtn) confirmBtn.disabled = true;
 
         fetch('process_resident.php', {
             method: 'POST',
@@ -206,14 +288,26 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(res => res.json())
         .then(data => {
             if(data.success) {
+                // FIX: Clear PIN and Close Modal
+                pinInput.value = ""; 
                 window.closeDeleteModal();
+
                 showToast("Resident successfully deleted", "success");
-                setTimeout(() => location.reload(), 1500); 
+                
+                // FIX: Force reload to update the table immediately
+                setTimeout(() => {
+                    location.reload(); 
+                }, 1000); 
             } else {
                 alert(data.message || "Invalid Admin PIN");
-                pinInput.value = ""; 
+                pinInput.value = ""; // Clear on wrong PIN too
                 pinInput.focus();
+                if (confirmBtn) confirmBtn.disabled = false;
             }
+        })
+        .catch(err => {
+            console.error("Delete Error:", err);
+            if (confirmBtn) confirmBtn.disabled = false;
         });
     };
 
@@ -253,8 +347,72 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ==========================================
-    // KEYBOARD & CLICK LISTENERS
+    // 6. Map-to-Modal Bridge
     // ==========================================
+    window.openLotModal = function(projectID, block, lot) {
+        const searchID = String(projectID).trim();
+        const searchBlock = String(block).trim();
+        const searchLot = String(lot).trim();
+
+        const residentIndex = window.residents.findIndex(r => {
+            const dbProjectID = String(r.subdivision_id || "").trim();
+            const dbBlock = String(r.block_no || "").trim();
+            const dbLot = String(r.lot_no || "").trim();
+            return dbProjectID === searchID && dbBlock === searchBlock && dbLot === searchLot;
+        });
+
+        if (residentIndex !== -1) {
+            const res = window.residents[residentIndex];
+
+            document.getElementById("infoResId").innerText = res.resident_id || "---";
+            document.getElementById("infoAddress").innerText = res.project || res.subdivision_id || "N/A";
+            document.getElementById("infoProperty").innerText = `Phase ${res.phase || '1'} | Blk ${res.block_no} Lot ${res.lot_no}`;
+            document.getElementById("infoTct").innerText = res.tct_no || "---";
+            document.getElementById("infoClient").innerText = res.buyer_name || "Unassigned";
+            document.getElementById("infoNewBuyer").innerText = res.new_buyer_assumed || "None";
+            document.getElementById("infoRep").innerText = res.buyer_representative || "---";
+            document.getElementById("infoContact").innerText = res.contact_no || "---";
+            document.getElementById("infoEmail").innerText = res.email_address || "---";
+            document.getElementById("infoSocial").innerText = res.social_media || "---";
+            document.getElementById("infoAccAddress").innerText = res.account_address || "---";
+            document.getElementById("infoAccNo").innerText = res.account_number || "---";
+            document.getElementById("infoTotalBill").innerText = res.total_bill ? `₱ ${Number(res.total_bill).toLocaleString()}` : "₱ 0.00";
+            document.getElementById("infoRemarks").innerText = res.remarks || "No additional remarks.";
+            document.getElementById("infoCreated").innerText = res.created_at || "-";
+
+            const statusEl = document.getElementById("infoStatus");
+            const status = (res.resident_status || "Active");
+            statusEl.innerText = status;
+            statusEl.style.backgroundColor = status === 'Active' ? '#065f46' : '#991b1b';
+            
+            const editBtn = document.getElementById("infoEditBtn");
+            if (editBtn) {
+                editBtn.onclick = function() {
+                    if(typeof window.closeMarkerModal === "function") window.closeMarkerModal();
+                    window.editResident(residentIndex); 
+                };
+            }
+
+            const overlay = document.getElementById("modalOverlay");
+            if(overlay) overlay.classList.add("show");
+
+        } else {
+            if(addForm) addForm.reset();
+            const addProj = document.getElementById("addProject");
+            if(addProj) addProj.value = projectID;
+            document.getElementById("addBlock").value = block;
+            document.getElementById("addLot").value = lot;
+            window.openResidentForm();
+        }
+    };
+
+    // ... (All your other logic for Add, Edit, Delete, etc. stays above this) ...
+
+    // ==========================================
+    // Final Listeners & Initialization
+    // ==========================================
+    
+    // Listeners for closing modals with Escape key
     document.addEventListener('keydown', (e) => {
         if (e.key === "Escape") {
             closeAddModal();
@@ -263,86 +421,28 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    if (searchInput) searchInput.addEventListener("input", e => renderResidentsTable(e.target.value));
-    renderResidentsTable();
+    // Example: Deleting a Resident
+    function deleteResident(index) {
+        // Show our custom logic
+        showSystemLoader("Removing Resident Record...");
 
-    // ==========================================
-    // 6. Map-to-Modal Bridge (Updated for Sleek Info Modal)
-    // ==========================================
-    window.openLotModal = function(projectKey, block, lot) {
-    const searchProject = String(projectKey).trim().toLowerCase();
-    const searchBlock = String(block).trim();
-    const searchLot = String(lot).trim();
-
-    const residentIndex = window.residents.findIndex(r => {
-        // Match using subdivision_id or project_name from PHP join
-        const dbProject = String(r.subdivision_id || "").trim().toLowerCase();
-        const dbBlock = String(r.block_no || "").trim();
-        const dbLot = String(r.lot_no || "").trim();
-        return dbProject === searchProject && dbBlock === searchBlock && dbLot === searchLot;
-    });
-
-    if (residentIndex !== -1) {
-        const res = window.residents[residentIndex];
-
-        // 1. Core Property Info
-        document.getElementById("infoResId").innerText = res.resident_id || "---";
-        document.getElementById("infoAddress").innerText = res.project || res.subdivision_id || "N/A";
-        document.getElementById("infoProperty").innerText = `Phase ${res.phase || '1'} | Blk ${res.block_no} Lot ${res.lot_no}`;
-        document.getElementById("infoTct").innerText = res.tct_no || "---";
-
-        // 2. Client & Ownership
-        document.getElementById("infoClient").innerText = res.buyer_name || "Unassigned";
-        document.getElementById("infoNewBuyer").innerText = res.new_buyer_assumed || "None";
-        document.getElementById("infoRep").innerText = res.buyer_representative || "---";
-        
-        // 3. Contact Details
-        document.getElementById("infoContact").innerText = res.contact_no || "---";
-        document.getElementById("infoEmail").innerText = res.email_address || "---";
-        document.getElementById("infoSocial").innerText = res.social_media || "---";
-        document.getElementById("infoAccAddress").innerText = res.account_address || "---";
-
-        // 4. Billing & Status
-        document.getElementById("infoAccNo").innerText = res.account_number || "---";
-        document.getElementById("infoTotalBill").innerText = res.total_bill ? `₱ ${Number(res.total_bill).toLocaleString()}` : "₱ 0.00";
-        document.getElementById("infoRemarks").innerText = res.remarks || "No additional remarks.";
-        document.getElementById("infoCreated").innerText = res.created_at || "-";
-
-        // 5. Dynamic Status Colors
-        const statusEl = document.getElementById("infoStatus");
-        const status = (res.resident_status || "Active");
-        statusEl.innerText = status;
-        statusEl.style.backgroundColor = status === 'Active' ? '#065f46' : '#991b1b'; // Green vs Red
-        statusEl.style.color = '#fff';
-
-        const billStatusEl = document.getElementById("infoBillStatus");
-        const bStatus = (res.bill_status || "Unpaid");
-        billStatusEl.innerText = bStatus.toUpperCase();
-        billStatusEl.style.color = bStatus === 'Paid' ? '#4ade80' : '#fb7185';
-
-        // 6. Action Button
-        const editBtn = document.getElementById("infoEditBtn");
-        if (editBtn) {
-            editBtn.onclick = function() {
-                window.closeMarkerModal();
-                window.editResident(residentIndex); 
-            };
-        }
-
-        document.getElementById("modalOverlay").classList.add("show");
-
-    } else {
-        // Logic for Vacant Lots
-        const addForm = document.getElementById("addResidentForm");
-        if(addForm) addForm.reset();
-        
-        // Pre-fill location for the new resident
-        const addProj = document.getElementById("addProject");
-        if(addProj) addProj.value = projectKey;
-        document.getElementById("addBlock").value = block;
-        document.getElementById("addLot").value = lot;
-        
-        window.openResidentForm();
+        // Small artificial delay so the animation is visible
+        setTimeout(() => {
+            window.residents.splice(index, 1);
+            renderResidentsTable(); // Refresh your UI
+            
+            hideSystemLoader(); // Close it when done
+        }, 800); 
     }
-};
+
+    // FIND THIS PART AT THE VERY END:
+    if (searchInput) {
+        searchInput.addEventListener("input", e => {
+            currentPage = 1; // Reset to page 1 so results aren't hidden on "Page 2"
+            renderResidentsTable(e.target.value);
+        });
+    }
+
+    // Initial render when the page first loads
+    renderResidentsTable();
 });
