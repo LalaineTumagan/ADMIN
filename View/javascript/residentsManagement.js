@@ -1,5 +1,5 @@
 /**
- * Imperial House - Residents Management Module (Enhanced & Fixed)
+ * Imperial House - Residents Management Module (Enhanced with Duplicate Check)
  */
 document.addEventListener("DOMContentLoaded", () => {
     if (!window.residents) window.residents = [];
@@ -8,164 +8,140 @@ document.addEventListener("DOMContentLoaded", () => {
     const addForm = document.getElementById("addResidentForm");
     const editForm = document.getElementById("editResidentForm");
 
-        // ==========================================
-        // 1. Render Table Logic (WITH PAGINATION)
-        // ==========================================
-        let currentPage = 1;
-        const rowsPerPage = 30;
+    // --- NEW: Helper to capitalize Block/Lot (handles 1a -> 1A) ---
+    const formatBlockLot = (e) => {
+        e.target.value = e.target.value.toUpperCase();
+    };
 
-        function renderResidentsTable(filter = "") {
-            const tbody = document.getElementById("residentsTableBody");
-            if (!tbody) return;
-
-            const searchTerm = filter.toLowerCase().trim();
-
-            // 1. FILTER: Search through the ENTIRE list first
-            const filteredResidents = window.residents
-                .map((res, index) => ({ ...res, originalIndex: index }))
-                .filter(res => {
-                    const name = String(res.buyer_name || "").toLowerCase();
-                    const tct = String(res.tct_no || "").toLowerCase();
-                    const acc = String(res.account_number || "").toLowerCase();
-                    const projectID = String(res.subdivision_id || "").toLowerCase();
-                    const projectName = String(res.project || "").toLowerCase();
-                    
-                    return name.includes(searchTerm) || tct.includes(searchTerm) || 
-                        acc.includes(searchTerm) || projectID.includes(searchTerm) ||
-                        projectName.includes(searchTerm);
-                });
-
-            // 2. PAGINATION MATH
-            const totalPages = Math.ceil(filteredResidents.length / rowsPerPage);
-            
-            // Safety: If we search and the result has fewer pages, reset to page 1
-            if (currentPage > totalPages) currentPage = totalPages || 1;
-
-            const start = (currentPage - 1) * rowsPerPage;
-            const end = start + rowsPerPage;
-            const paginatedItems = filteredResidents.slice(start, end);
-
-            tbody.innerHTML = "";
-
-            if (paginatedItems.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding: 40px; color: #94a3b8;">No residents found.</td></tr>`;
-                renderPaginationControls(0, 0); 
-                return;
-            }
-
-            paginatedItems.forEach(res => {
-                const tr = document.createElement("tr");
-                const statusVal = res.resident_status || "Active";
-                const statusClass = statusVal.toLowerCase().replace(/\s+/g, "-");
-                const displayProject = res.project || res.subdivision_id || "-";
-
-                tr.innerHTML = `
-                    <td>${res.resident_id}</td>
-                    <td>${displayProject}</td>
-                    <td>${res.phase || "-"}</td>
-                    <td>${res.block_no || "-"}</td>
-                    <td>${res.lot_no || "-"}</td>
-                    <td>${res.tct_no || "-"}</td>
-                    <td style="font-weight: 700; color: #f8fafc;">${res.buyer_name || "N/A"}</td>
-                    <td><span class="status-tag ${statusClass}">${statusVal}</span></td>
-                    <td>
-                        <div style="display: flex; gap: 5px;">
-                            <button class="btn-edit" onclick="editResident(${res.originalIndex})">Edit</button>
-                            <button class="btn-delete" onclick="deleteResident(${res.originalIndex})" style="background:#991b1b;">Del</button>
-                        </div>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            // Update the navigation buttons
-            renderPaginationControls(currentPage, totalPages);
-        }
-
-        // NEW: Helper for creating pagination buttons
-        function renderPaginationControls(current, total) {
-            let controls = document.getElementById("paginationControls");
-            
-            // Create the container if it doesn't exist in your HTML
-            if (!controls) {
-                controls = document.createElement("div");
-                controls.id = "paginationControls";
-                controls.style = "display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 20px; padding: 15px;";
-                // Place it right after the table's parent container
-                const tableParent = document.querySelector(".table-container");
-                if(tableParent) tableParent.after(controls);
-            }
-
-            if (total <= 1) {
-                controls.innerHTML = "";
-                return;
-            }
-
-            controls.innerHTML = `
-                <button class="btn-edit" ${current === 1 ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} 
-                    onclick="window.changePage(${current - 1})">Previous</button>
-                <span style="color: #94a3b8;">Page <b>${current}</b> of ${total}</span>
-                <button class="btn-edit" ${current === total ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} 
-                    onclick="window.changePage(${current + 1})">Next</button>
-            `;
-        }
-
-        // Global function to handle page switching
-        window.changePage = function(newPage) {
-            currentPage = newPage;
-            const currentSearch = searchInput ? searchInput.value : "";
-            renderResidentsTable(currentSearch);
-            
-            // Optional: Scroll to top of table when page changes
-            const tableContainer = document.querySelector(".table-container");
-            if(tableContainer) tableContainer.scrollTop = 0;
-        };
+    // Attach to all block/lot inputs
+    ['addBlock', 'addLot', 'editBlock', 'editLot'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', formatBlockLot);
+    });
 
     // ==========================================
-    // 2. Add Resident Logic (FIXED DOUBLE SAVE)
+    // 1. Render Table Logic (WITH PAGINATION)
+    // ==========================================
+    let currentPage = 1;
+    const rowsPerPage = 30;
+
+    function renderResidentsTable(filter = "") {
+        const tbody = document.getElementById("residentsTableBody");
+        if (!tbody) return;
+
+        const searchTerm = filter.toLowerCase().trim();
+
+        const filteredResidents = window.residents
+            .map((res, index) => ({ ...res, originalIndex: index }))
+            .filter(res => {
+                const name = String(res.buyer_name || "").toLowerCase();
+                const tct = String(res.tct_no || "").toLowerCase();
+                const acc = String(res.account_number || "").toLowerCase();
+                const projectID = String(res.subdivision_id || "").toLowerCase();
+                const projectName = String(res.project || "").toLowerCase();
+                
+                return name.includes(searchTerm) || tct.includes(searchTerm) || 
+                    acc.includes(searchTerm) || projectID.includes(searchTerm) ||
+                    projectName.includes(searchTerm);
+            });
+
+        const totalPages = Math.ceil(filteredResidents.length / rowsPerPage);
+        if (currentPage > totalPages) currentPage = totalPages || 1;
+
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        const paginatedItems = filteredResidents.slice(start, end);
+
+        tbody.innerHTML = "";
+
+        if (paginatedItems.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; padding: 40px; color: #94a3b8;">No residents found.</td></tr>`;
+            renderPaginationControls(0, 0); 
+            return;
+        }
+
+        paginatedItems.forEach(res => {
+            const tr = document.createElement("tr");
+            const statusVal = res.resident_status || "Active";
+            const statusClass = statusVal.toLowerCase().replace(/\s+/g, "-");
+            const displayProject = res.project || res.subdivision_id || "-";
+
+            tr.innerHTML = `
+                <td>${res.resident_id}</td>
+                <td>${displayProject}</td>
+                <td>${res.phase || "-"}</td>
+                <td>${res.block_no || "-"}</td>
+                <td>${res.lot_no || "-"}</td>
+                <td>${res.tct_no || "-"}</td>
+                <td style="font-weight: 700; color: #f8fafc;">${res.buyer_name || "N/A"}</td>
+                <td><span class="status-tag ${statusClass}">${statusVal}</span></td>
+                <td>
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn-edit" onclick="editResident(${res.originalIndex})">Edit</button>
+                        <button class="btn-delete" onclick="deleteResident(${res.originalIndex})" style="background:#991b1b;">Del</button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        renderPaginationControls(currentPage, totalPages);
+    }
+
+    function renderPaginationControls(current, total) {
+        let controls = document.getElementById("paginationControls");
+        if (!controls) {
+            controls = document.createElement("div");
+            controls.id = "paginationControls";
+            controls.style = "display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 20px; padding: 15px;";
+            const tableParent = document.querySelector(".table-container");
+            if(tableParent) tableParent.after(controls);
+        }
+        if (total <= 1) { controls.innerHTML = ""; return; }
+
+        controls.innerHTML = `
+            <button class="btn-edit" ${current === 1 ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} 
+                onclick="window.changePage(${current - 1})">Previous</button>
+            <span style="color: #94a3b8;">Page <b>${current}</b> of ${total}</span>
+            <button class="btn-edit" ${current === total ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} 
+                onclick="window.changePage(${current + 1})">Next</button>
+        `;
+    }
+
+    window.changePage = function(newPage) {
+        currentPage = newPage;
+        const currentSearch = searchInput ? searchInput.value : "";
+        renderResidentsTable(currentSearch);
+        const tableContainer = document.querySelector(".table-container");
+        if(tableContainer) tableContainer.scrollTop = 0;
+    };
+
+    // ==========================================
+    // 2. Add Resident Logic (UPDATED FOR DUPLICATE CHECK)
     // ==========================================
     if (addForm) {
         addForm.addEventListener("submit", function (e) {
             e.preventDefault();
-
-            // Safety check: prevent double clicks
             const submitBtn = addForm.querySelector('button[type="submit"]');
             if (submitBtn.disabled) return;
             
             submitBtn.disabled = true;
             submitBtn.innerText = "Saving...";
 
-            const formData = {
-                action: 'add',
-                subdivision_id: document.getElementById("addProject").value,
-                tct_no: document.getElementById("addTct").value,
-                phase: document.getElementById("addPhase").value,
-                block_no: document.getElementById("addBlock").value,
-                lot_no: document.getElementById("addLot").value,
-                buyer_name: document.getElementById("addName").value,
-                new_buyer_assumed: document.getElementById("addNewBuyer").value,
-                buyer_representative: document.getElementById("addRep").value,
-                contact_no: document.getElementById("addContact").value,
-                email_address: document.getElementById("addEmail").value,
-                social_media: document.getElementById("addSocial").value,
-                account_number: document.getElementById("addAccountNo").value,
-                account_address: document.getElementById("addAccountAddress").value,
-                resident_status: document.getElementById("addStatus").value,
-                remarks: document.getElementById("addRemarks").value,
-                created_at: document.getElementById("addCreatedAt").value
-            };
+            const formData = new FormData(addForm);
+            formData.append('action', 'ADD_RESIDENT');
 
             fetch('process_resident.php', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: formData // Using FormData is better for the check logic
             })
             .then(res => res.json())
             .then(data => {
                 if(data.success) {
                     location.reload(); 
                 } else {
-                    alert("Error: " + data.message);
+                    // This alerts the user if "Block/Lot is already owned"
+                    alert("⚠️ " + data.message);
                     submitBtn.disabled = false;
                     submitBtn.innerText = "Save Resident";
                 }
@@ -179,7 +155,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ==========================================
-    // 3. Edit Resident Logic
+    // 3. Edit Resident Logic (UPDATED)
     // ==========================================
     window.editResident = function (index) {
         const res = window.residents[index];
@@ -213,66 +189,47 @@ document.addEventListener("DOMContentLoaded", () => {
     if (editForm) {
         editForm.addEventListener("submit", function(e) {
             e.preventDefault();
-            const formData = {
-                action: 'edit',
-                id: document.getElementById("editResidentId").value,
-                subdivision_id: document.getElementById("editProject").value,
-                tct_no: document.getElementById("editTct").value,
-                phase: document.getElementById("editPhase").value,
-                block_no: document.getElementById("editBlock").value,
-                lot_no: document.getElementById("editLot").value,
-                buyer_name: document.getElementById("editName").value,
-                account_number: document.getElementById("editAccountNo").value,
-                contact_no: document.getElementById("editContact").value,
-                email_address: document.getElementById("editEmail").value,
-                resident_status: document.getElementById("editStatus").value,
-                remarks: document.getElementById("editRemarks").value
-            };
+            const formData = new FormData(editForm);
+            formData.append('action', 'UPDATE_RESIDENT');
+            formData.append('resident_id', document.getElementById("editResidentId").value);
 
             fetch('process_resident.php', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: formData
             })
             .then(res => res.json())
             .then(data => {
                 if(data.success) location.reload();
-                else alert("Error: " + data.message);
+                else alert("⚠️ " + data.message);
             });
         });
     }
 
     // ==========================================
-    // 4. Delete Logic (Fixed Security & Reload)
+    // 4. Delete Logic
     // ==========================================
     let deleteResidentId = null; 
     
     window.deleteResident = function (index) {
         const res = window.residents[index];
         if (!res) return;
-
         deleteResidentId = res.resident_id; 
 
-        // FIX: Clear the PIN input EVERY time the modal opens
         const pinInput = document.getElementById("adminPinInput");
         if (pinInput) {
             pinInput.value = "";
-            // Small timeout to focus the input after the modal animation starts
             setTimeout(() => pinInput.focus(), 200); 
         }
-
         document.getElementById("deleteResidentModal").classList.add("show");
     };
 
     window.processDeleteResident = function () {
         const pinInput = document.getElementById("adminPinInput");
-        
         if (!deleteResidentId || !pinInput || !pinInput.value) {
             alert("Please enter the Admin PIN");
             return;
         }
 
-        // Disable the confirm button so they can't click it twice
         const confirmBtn = document.querySelector("#deleteResidentModal button[onclick='processDeleteResident()']");
         if (confirmBtn) confirmBtn.disabled = true;
 
@@ -288,26 +245,16 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(res => res.json())
         .then(data => {
             if(data.success) {
-                // FIX: Clear PIN and Close Modal
                 pinInput.value = ""; 
                 window.closeDeleteModal();
-
                 showToast("Resident successfully deleted", "success");
-                
-                // FIX: Force reload to update the table immediately
-                setTimeout(() => {
-                    location.reload(); 
-                }, 1000); 
+                setTimeout(() => { location.reload(); }, 1000); 
             } else {
                 alert(data.message || "Invalid Admin PIN");
-                pinInput.value = ""; // Clear on wrong PIN too
+                pinInput.value = ""; 
                 pinInput.focus();
                 if (confirmBtn) confirmBtn.disabled = false;
             }
-        })
-        .catch(err => {
-            console.error("Delete Error:", err);
-            if (confirmBtn) confirmBtn.disabled = false;
         });
     };
 
@@ -363,7 +310,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (residentIndex !== -1) {
             const res = window.residents[residentIndex];
-
             document.getElementById("infoResId").innerText = res.resident_id || "---";
             document.getElementById("infoAddress").innerText = res.project || res.subdivision_id || "N/A";
             document.getElementById("infoProperty").innerText = `Phase ${res.phase || '1'} | Blk ${res.block_no} Lot ${res.lot_no}`;
@@ -392,7 +338,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     window.editResident(residentIndex); 
                 };
             }
-
             const overlay = document.getElementById("modalOverlay");
             if(overlay) overlay.classList.add("show");
 
@@ -406,13 +351,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    // ... (All your other logic for Add, Edit, Delete, etc. stays above this) ...
-
-    // ==========================================
-    // Final Listeners & Initialization
-    // ==========================================
-    
-    // Listeners for closing modals with Escape key
     document.addEventListener('keydown', (e) => {
         if (e.key === "Escape") {
             closeAddModal();
@@ -421,28 +359,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Example: Deleting a Resident
-    function deleteResident(index) {
-        // Show our custom logic
-        showSystemLoader("Removing Resident Record...");
-
-        // Small artificial delay so the animation is visible
-        setTimeout(() => {
-            window.residents.splice(index, 1);
-            renderResidentsTable(); // Refresh your UI
-            
-            hideSystemLoader(); // Close it when done
-        }, 800); 
-    }
-
-    // FIND THIS PART AT THE VERY END:
     if (searchInput) {
         searchInput.addEventListener("input", e => {
-            currentPage = 1; // Reset to page 1 so results aren't hidden on "Page 2"
+            currentPage = 1;
             renderResidentsTable(e.target.value);
         });
     }
 
-    // Initial render when the page first loads
     renderResidentsTable();
 });

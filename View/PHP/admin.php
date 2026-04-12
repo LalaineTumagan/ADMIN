@@ -263,62 +263,62 @@ function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
 
     <div id="addResidentModal" class="modal-overlay">
         <div class="modal-container" style="max-width: 800px;">
-            <div class="modal-top-bar"><span>New Resident Registration</span><button onclick="closeAddModal()">✕</button></div>
+            <div class="modal-top-bar"><span>New Resident Registration</span><button type="button" onclick="closeAddModal()">✕</button></div>
             <form id="addResidentForm">
                 <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
                     <div class="modal-section-title">Property Details</div>
-                    <div class="form-grid">
+                    <div class="form-grid"> 
                         <div>
                             <label>Subdivision Project</label>
-                            <select id="addProject" required>
+                            <select id="addProject" name="subdivision_id" required>
                                 <option value="" disabled selected>Select Project</option>
                                 <?php $projects->data_seek(0); while($p = $projects->fetch_assoc()): ?>
                                     <option value="<?php echo htmlspecialchars($p['subdivision_id']); ?>"><?php echo $p['project_name']; ?></option>
                                 <?php endwhile; ?>
                             </select>
                         </div>
-                        <div><label>TCT Number</label><input type="text" id="addTct"></div>
+                        <div><label>TCT Number</label><input type="text" id="addTct" name="tct_no"></div>
                     </div>
-                    <div style="display: flex; gap: 15px; margin-top: 10px;">
-                        <div style="flex: 1;"><label>Phase</label><input type="text" id="addPhase"></div>
-                        <div style="flex: 1;"><label>Block No.</label><input type="text" id="addBlock" required></div>
-                        <div style="flex: 1;"><label>Lot No.</label><input type="text" id="addLot" required></div>
+                    <div style="display: flex; gap: 15px; margin-top: 10px; flex-wrap: wrap;">
+                        <div style="flex: 1;"><label>Phase</label><input type="text" id="addPhase" name="phase"></div>
+                        <div style="flex: 1;"><label>Block No.</label><input type="text" id="addBlock" name="block_no" style="text-transform: uppercase;" required></div>
+                        <div style="flex: 1;"><label>Lot No.</label><input type="text" id="addLot" name="lot_no" style="text-transform: uppercase;" required></div>
                     </div>
 
                     <div class="modal-section-title">Ownership Information</div>
                     <div class="form-grid">
-                        <div><label>Primary Buyer Name</label><input type="text" id="addName" required></div>
-                        <div><label>Account Number</label><input type="text" id="addAccountNo"></div>
+                        <div><label>Primary Buyer Name</label><input type="text" id="addName" name="buyer_name" required></div>
+                        <div><label>Account Number</label><input type="text" id="addAccountNo" name="account_number"></div>
                     </div>
                     <div class="form-grid" style="margin-top: 10px;">
-                        <div><label>New Buyer Assumed</label><input type="text" id="addNewBuyer"></div>
-                        <div><label>Buyer Representative</label><input type="text" id="addRep"></div>
+                        <div><label>New Buyer Assumed</label><input type="text" id="addNewBuyer" name="new_buyer_assumed"></div>
+                        <div><label>Buyer Representative</label><input type="text" id="addRep" name="buyer_representative"></div>
                     </div>
                     <label style="margin-top:10px;">Account/Billing Address</label>
-                    <input type="text" id="addAccountAddress">
+                    <input type="text" id="addAccountAddress" name="account_address">
 
                     <div class="modal-section-title">Contact & Communication</div>
                     <div class="form-grid">
-                        <div><label>Contact No.</label><input type="text" id="addContact"></div>
-                        <div><label>Email Address</label><input type="email" id="addEmail"></div>
+                        <div><label>Contact No.</label><input type="text" id="addContact" name="contact_no"></div>
+                        <div><label>Email Address</label><input type="email" id="addEmail" name="email_address"></div>
                     </div>
                     <label style="margin-top:10px;">Social Media (FB/Messenger)</label>
-                    <input type="text" id="addSocial">
+                    <input type="text" id="addSocial" name="social_media">
 
                     <div class="modal-section-title">System Status & Remarks</div>
                     <div class="form-grid">
                         <div>
                             <label>Resident Status</label>
-                            <select id="addStatus">
+                            <select id="addStatus" name="resident_status">
                                 <option value="Active">Active</option>
                                 <option value="Inactive">Inactive</option>
                                 <option value="Moved Out">Moved Out</option>
                             </select>
                         </div>
-                        <div><label>Registration Date</label><input type="date" id="addCreatedAt" value="<?php echo date('Y-m-d'); ?>"></div>
+                        <div><label>Registration Date</label><input type="date" id="addCreatedAt" name="created_at" value="<?php echo date('Y-m-d'); ?>"></div>
                     </div>
                     <label style="margin-top:10px;">Internal Remarks</label>
-                    <textarea id="addRemarks" placeholder="Add any specific notes..."></textarea>
+                    <textarea id="addRemarks" name="remarks" placeholder="Add any specific notes..."></textarea>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn-delete" onclick="closeAddModal()">Cancel</button>
@@ -332,52 +332,52 @@ function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
         <div class="modal-container" style="max-width: 800px;">
             <div class="modal-top-bar"><span>Edit Resident Information</span><button type="button" onclick="closeEditModal()">✕</button></div>
             <form id="editResidentForm">
-                <input type="hidden" id="editResidentId">
+                <input type="hidden" id="editResidentId" name="resident_id">
                 <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
                     <div class="modal-section-title">Property Details</div>
                     <div class="form-grid">
                         <div>
                             <label>Subdivision Project</label>
-                            <select id="editProject" required>
+                            <select id="editProject" name="subdivision_id" required>
                                 <?php $projects->data_seek(0); while($p = $projects->fetch_assoc()): ?>
                                     <option value="<?php echo htmlspecialchars($p['subdivision_id']); ?>"><?php echo $p['project_name']; ?></option>
                                 <?php endwhile; ?>
                             </select>
                         </div>
-                        <div><label>TCT Number</label><input type="text" id="editTct"></div>
-                        <div><label>Phase</label><input type="text" id="editPhase"></div>
-                        <div><label>Block No.</label><input type="text" id="editBlock" required></div>
-                        <div><label>Lot No.</label><input type="text" id="editLot" required></div>
-                        <div><label>Created Date</label><input type="date" id="editCreatedAt"></div>
+                        <div><label>TCT Number</label><input type="text" id="editTct" name="tct_no"></div>
+                        <div><label>Phase</label><input type="text" id="editPhase" name="phase"></div>
+                        <div><label>Block No.</label><input type="text" id="editBlock" name="block_no" style="text-transform: uppercase;" required></div>
+                        <div><label>Lot No.</label><input type="text" id="editLot" name="lot_no" style="text-transform: uppercase;" required></div>
+                        <div><label>Created Date</label><input type="date" id="editCreatedAt" name="created_at"></div>
                     </div>
 
                     <div class="modal-section-title">Ownership & Assumption</div>
                     <div class="form-grid">
-                        <div><label>Primary Buyer Name</label><input type="text" id="editName" required></div>
-                        <div><label>New Buyer / Assumed By</label><input type="text" id="editNewBuyer"></div>
-                        <div><label>Buyer Representative</label><input type="text" id="editRep"></div>
-                        <div><label>Account Number</label><input type="text" id="editAccountNo"></div>
+                        <div><label>Primary Buyer Name</label><input type="text" id="editName" name="buyer_name" required></div>
+                        <div><label>New Buyer / Assumed By</label><input type="text" id="editNewBuyer" name="new_buyer_assumed"></div>
+                        <div><label>Buyer Representative</label><input type="text" id="editRep" name="buyer_representative"></div>
+                        <div><label>Account Number</label><input type="text" id="editAccountNo" name="account_number"></div>
                     </div>
 
                     <div class="modal-section-title">Contact Information</div>
                     <div class="form-grid">
-                        <div><label>Contact No.</label><input type="text" id="editContact"></div>
-                        <div><label>Email Address</label><input type="email" id="editEmail"></div>
-                        <div><label>Social Media (Link/Handle)</label><input type="text" id="editSocial"></div>
-                        <div><label>Account Address</label><input type="text" id="editAccountAddress"></div>
+                        <div><label>Contact No.</label><input type="text" id="editContact" name="contact_no"></div>
+                        <div><label>Email Address</label><input type="email" id="editEmail" name="email_address"></div>
+                        <div><label>Social Media (Link/Handle)</label><input type="text" id="editSocial" name="social_media"></div>
+                        <div><label>Account Address</label><input type="text" id="editAccountAddress" name="account_address"></div>
                     </div>
                     
                     <div class="modal-section-title">Resident Status & Remarks</div>
                     <div class="form-grid">
                         <div>
                             <label>Resident Status</label>
-                            <select id="editStatus">
+                            <select id="editStatus" name="resident_status">
                                 <option value="Active">Active</option>
                                 <option value="Inactive">Inactive</option>
                                 <option value="Moved Out">Moved Out</option>
                             </select>
                         </div>
-                        <div><label>Remarks</label><textarea id="editRemarks"></textarea></div>
+                        <div><label>Remarks</label><textarea id="editRemarks" name="remarks"></textarea></div>
                     </div>
                 </div>
                 <div class="modal-footer" style="justify-content: space-between;">
