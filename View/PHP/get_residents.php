@@ -12,9 +12,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lot     = trim($_POST['lot_no']);
         $res_id  = $_POST['resident_id'] ?? 0;
         $name    = $_POST['resident_name'] ?? 'Unknown';
+        $contact = $_POST['contact_no'] ?? '';
+
+        // --- NEW: VALIDATION RESTRICTIONS ---
+        if (preg_match('~[0-9]~', $name)) {
+            echo json_encode(["success" => false, "message" => "Error: Client name cannot contain numbers."]);
+            exit;
+        }
+        if (preg_match('/[a-zA-Z]/', $contact)) {
+            echo json_encode(["success" => false, "message" => "Error: Contact number must contain digits only."]);
+            exit;
+        }
 
         // --- DUPLICATE CHECK LOGIC ---
-        // We look for any OTHER resident with the same Sub/Block/Lot
         $check_sql = "SELECT resident_name FROM residents 
                       WHERE subdivision_id = ? 
                       AND block_no = ? 
@@ -35,17 +45,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         // If no duplicate, proceed with your existing INSERT/UPDATE logic here...
-        // (Insert your SQL execution code for saving here)
     }
 }
 
-// --- 2. HANDLE FETCHING (GET REQUESTS / DEFAULT) ---
+// --- 2. HANDLE FETCHING (PAGINATION LOGIC) ---
 /**
- * We join:
- * 1. residents (r)
- * 2. subdivisions (s) - to get the 'project_name'
- * 3. utility_bills (u) - to get 'electric_bill' and 'water_bill'
+ * 20,000 Residents require pagination to prevent browser freezing.
  */
+$limit = 50; // Show 50 per page
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $limit;
+
+// Get total count for the frontend to know how many pages exist
+$total_result = $conn->query("SELECT COUNT(*) as total FROM residents");
+$total_count = $total_result->fetch_assoc()['total'];
+$total_pages = ceil($total_count / $limit);
+
 $sql = "SELECT 
             r.*, 
             s.project_name, 
@@ -54,7 +69,8 @@ $sql = "SELECT
         FROM residents r
         LEFT JOIN subdivisions s ON r.subdivision_id = s.subdivision_id
         LEFT JOIN utility_bills u ON r.resident_id = u.resident_id
-        ORDER BY r.resident_id DESC";
+        ORDER BY r.resident_id DESC
+        LIMIT $limit OFFSET $offset"; // Added Limit and Offset
 
 $result = $conn->query($sql);
 $residents = [];
@@ -66,6 +82,9 @@ if ($result) {
     echo json_encode([
         "success" => true, 
         "count" => count($residents),
+        "total_count" => (int)$total_count,
+        "current_page" => $page,
+        "total_pages" => $total_pages,
         "residents" => $residents
     ]);
 } else {

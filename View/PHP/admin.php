@@ -287,19 +287,30 @@ function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
 
                     <div class="modal-section-title">Ownership Information</div>
                     <div class="form-grid">
-                        <div><label>Primary Buyer Name</label><input type="text" id="addName" name="buyer_name" required></div>
+                        <div>
+                            <label>Primary Buyer Name</label>
+                            <input type="text" id="addName" name="buyer_name" 
+                                   pattern="^[a-zA-Z\sñÑ.]+$" 
+                                   title="Numbers are not allowed in the name." 
+                                   required>
+                        </div>
                         <div><label>Account Number</label><input type="text" id="addAccountNo" name="account_number"></div>
                     </div>
                     <div class="form-grid" style="margin-top: 10px;">
-                        <div><label>New Buyer Assumed</label><input type="text" id="addNewBuyer" name="new_buyer_assumed"></div>
-                        <div><label>Buyer Representative</label><input type="text" id="addRep" name="buyer_representative"></div>
+                        <div><label>New Buyer Assumed</label><input type="text" id="addNewBuyer" name="new_buyer_assumed" pattern="^[a-zA-Z\sñÑ.]+$" title="Numbers are not allowed."></div>
+                        <div><label>Buyer Representative</label><input type="text" id="addRep" name="buyer_representative" pattern="^[a-zA-Z\sñÑ.]+$" title="Numbers are not allowed."></div>
                     </div>
                     <label style="margin-top:10px;">Account/Billing Address</label>
                     <input type="text" id="addAccountAddress" name="account_address">
 
                     <div class="modal-section-title">Contact & Communication</div>
                     <div class="form-grid">
-                        <div><label>Contact No.</label><input type="text" id="addContact" name="contact_no"></div>
+                        <div>
+                            <label>Contact No.</label>
+                            <input type="text" id="addContact" name="contact_no" 
+                                   oninput="this.value = this.value.replace(/[^0-9+]/g, '')" 
+                                   placeholder="09123456789">
+                        </div>
                         <div><label>Email Address</label><input type="email" id="addEmail" name="email_address"></div>
                     </div>
                     <label style="margin-top:10px;">Social Media (FB/Messenger)</label>
@@ -339,6 +350,7 @@ function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
                         <div>
                             <label>Subdivision Project</label>
                             <select id="editProject" name="subdivision_id" required>
+                                <option value="" disabled selected>Select Project</option>
                                 <?php $projects->data_seek(0); while($p = $projects->fetch_assoc()): ?>
                                     <option value="<?php echo htmlspecialchars($p['subdivision_id']); ?>"><?php echo $p['project_name']; ?></option>
                                 <?php endwhile; ?>
@@ -353,15 +365,36 @@ function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
 
                     <div class="modal-section-title">Ownership & Assumption</div>
                     <div class="form-grid">
-                        <div><label>Primary Buyer Name</label><input type="text" id="editName" name="buyer_name" required></div>
-                        <div><label>New Buyer / Assumed By</label><input type="text" id="editNewBuyer" name="new_buyer_assumed"></div>
-                        <div><label>Buyer Representative</label><input type="text" id="editRep" name="buyer_representative"></div>
+                        <div>
+                            <label>Primary Buyer Name</label>
+                            <input type="text" id="editName" name="buyer_name" 
+                                   pattern="^[a-zA-Z\sñÑ.]+$" 
+                                   title="Numbers are not allowed in the name." 
+                                   required>
+                        </div>
+                        <div>
+                            <label>New Buyer / Assumed By</label>
+                            <input type="text" id="editNewBuyer" name="new_buyer_assumed" 
+                                   pattern="^[a-zA-Z\sñÑ.]+$" 
+                                   title="Numbers are not allowed.">
+                        </div>
+                        <div>
+                            <label>Buyer Representative</label>
+                            <input type="text" id="editRep" name="buyer_representative" 
+                                   pattern="^[a-zA-Z\sñÑ.]+$" 
+                                   title="Numbers are not allowed.">
+                        </div>
                         <div><label>Account Number</label><input type="text" id="editAccountNo" name="account_number"></div>
                     </div>
 
                     <div class="modal-section-title">Contact Information</div>
                     <div class="form-grid">
-                        <div><label>Contact No.</label><input type="text" id="editContact" name="contact_no"></div>
+                        <div>
+                            <label>Contact No.</label>
+                            <input type="text" id="editContact" name="contact_no" 
+                                   oninput="this.value = this.value.replace(/[^0-9+]/g, '')" 
+                                   placeholder="09123456789">
+                        </div>
                         <div><label>Email Address</label><input type="email" id="editEmail" name="email_address"></div>
                         <div><label>Social Media (Link/Handle)</label><input type="text" id="editSocial" name="social_media"></div>
                         <div><label>Account Address</label><input type="text" id="editAccountAddress" name="account_address"></div>

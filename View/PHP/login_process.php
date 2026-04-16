@@ -26,7 +26,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             mysqli_stmt_bind_param($up_stmt, "i", $admin['admin_id']);
             mysqli_stmt_execute($up_stmt);
 
-            // FIXED: admin.php is in the SAME folder now
+
             header("Location: admin.php");
             exit();
         } else {

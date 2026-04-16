@@ -39,43 +39,59 @@ if ($data) {
 
     // ACTION: EDIT
     if ($action === 'edit' && isset($data['id'])) {
-        $sql = "UPDATE residents SET subdivision_id=?, tct_no=?, phase=?, block_no=?, lot_no=?, buyer_name=?, account_number=?, contact_no=?, email_address=?, resident_status=?, remarks=? WHERE resident_id=?";
-        $stmt = $conn->prepare($sql);
-        if ($stmt) {
-            $stmt->bind_param("issssssssssi", 
-                $data['subdivision_id'], $data['tct_no'], $data['phase'], $data['block_no'], $data['lot_no'], 
-                $data['buyer_name'], $data['account_number'], $data['contact_no'], 
-                $data['email_address'], $data['resident_status'], $data['remarks'], $data['id']
-            );
-            if ($stmt->execute()) {
-                $output = ["success" => true];
-                record_audit($conn, $current_admin, 'UPDATED', "Modified: " . $data['buyer_name']);
-            } else {
-                $output["message"] = $stmt->error;
+        // VALIDATION LOGIC
+        if (preg_match('~[0-9]~', $data['buyer_name'])) {
+            $output["message"] = "Error: Client name cannot contain numbers.";
+        } else if (preg_match('/[a-zA-Z]/', $data['contact_no'])) {
+            $output["message"] = "Error: Contact number must contain digits only.";
+        } else {
+            // PROCEED IF VALID
+            $sql = "UPDATE residents SET subdivision_id=?, tct_no=?, phase=?, block_no=?, lot_no=?, buyer_name=?, account_number=?, contact_no=?, email_address=?, resident_status=?, remarks=? WHERE resident_id=?";
+            $stmt = $conn->prepare($sql);
+            if ($stmt) {
+                $stmt->bind_param("issssssssssi", 
+                    $data['subdivision_id'], $data['tct_no'], $data['phase'], $data['block_no'], $data['lot_no'], 
+                    $data['buyer_name'], $data['account_number'], $data['contact_no'], 
+                    $data['email_address'], $data['resident_status'], $data['remarks'], $data['id']
+                );
+                if ($stmt->execute()) {
+                    $output = ["success" => true];
+                    record_audit($conn, $current_admin, 'UPDATED', "Modified: " . $data['buyer_name']);
+                } else {
+                    $output["message"] = $stmt->error;
+                }
+                $stmt->close();
             }
-            $stmt->close();
         }
     }
 
     // ACTION: ADD
     else if ($action === 'add') {
-        $sql = "INSERT INTO residents (subdivision_id, tct_no, phase, block_no, lot_no, buyer_name, new_buyer_assumed, buyer_representative, contact_no, email_address, social_media, account_number, account_address, resident_status, remarks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        $stmt = $conn->prepare($sql);
-        if ($stmt) {
-            $stmt->bind_param("isssssssssssssss", 
-                $data['subdivision_id'], $data['tct_no'], $data['phase'], $data['block_no'], $data['lot_no'], 
-                $data['buyer_name'], $data['new_buyer_assumed'], $data['buyer_representative'], 
-                $data['contact_no'], $data['email_address'], $data['social_media'], 
-                $data['account_number'], $data['account_address'], $data['resident_status'], 
-                $data['remarks'], $data['created_at']
-            );
-            if ($stmt->execute()) {
-                $output = ["success" => true];
-                record_audit($conn, $current_admin, 'CREATED', "Added: " . $data['buyer_name']);
-            } else {
-                $output["message"] = $stmt->error;
+        // VALIDATION LOGIC
+        if (preg_match('~[0-9]~', $data['buyer_name'])) {
+            $output["message"] = "Error: Client name cannot contain numbers.";
+        } else if (preg_match('/[a-zA-Z]/', $data['contact_no'])) {
+            $output["message"] = "Error: Contact number must contain digits only.";
+        } else {
+            // PROCEED IF VALID
+            $sql = "INSERT INTO residents (subdivision_id, tct_no, phase, block_no, lot_no, buyer_name, new_buyer_assumed, buyer_representative, contact_no, email_address, social_media, account_number, account_address, resident_status, remarks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $stmt = $conn->prepare($sql);
+            if ($stmt) {
+                $stmt->bind_param("isssssssssssssss", 
+                    $data['subdivision_id'], $data['tct_no'], $data['phase'], $data['block_no'], $data['lot_no'], 
+                    $data['buyer_name'], $data['new_buyer_assumed'], $data['buyer_representative'], 
+                    $data['contact_no'], $data['email_address'], $data['social_media'], 
+                    $data['account_number'], $data['account_address'], $data['resident_status'], 
+                    $data['remarks'], $data['created_at']
+                );
+                if ($stmt->execute()) {
+                    $output = ["success" => true];
+                    record_audit($conn, $current_admin, 'CREATED', "Added: " . $data['buyer_name']);
+                } else {
+                    $output["message"] = $stmt->error;
+                }
+                $stmt->close();
             }
-            $stmt->close();
         }
     }
 
@@ -85,7 +101,6 @@ if ($data) {
         $providedPin = $data['admin_pin'] ?? '';
         $residentId = $data['id'] ?? 0;
 
-        // 1. Fetch the name using 'buyer_name' (matches your ADD/EDIT columns)
         $getName = $conn->prepare("SELECT buyer_name FROM residents WHERE resident_id = ?");
         $getName->bind_param("i", $residentId);
         $getName->execute();
@@ -98,14 +113,12 @@ if ($data) {
         } else {
             $residentName = $resident['buyer_name'];
 
-            // 2. Security Check
             $auth = $conn->prepare("SELECT admin_name FROM admins WHERE admin_id = ? AND auth_key = ?");
             $auth->bind_param("is", $currentAdminId, $providedPin);
             $auth->execute();
             $authRes = $auth->get_result();
             
             if ($row = $authRes->fetch_assoc()) {
-                // 3. Perform Delete
                 $del = $conn->prepare("DELETE FROM residents WHERE resident_id = ?");
                 $del->bind_param("i", $residentId);
                 
@@ -130,4 +143,4 @@ while (ob_get_level()) { ob_end_clean(); }
 header('Content-Type: application/json');
 echo json_encode($output);
 $conn->close();
-exit;   
+exit;
