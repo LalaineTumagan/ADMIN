@@ -32,15 +32,24 @@ CREATE TABLE `admins` (
   `admin_name` varchar(100) DEFAULT NULL,
   `authority_level` enum('Master','Admin') DEFAULT 'Admin',
   `auth_key` varchar(255) NOT NULL,
+  `admin_status` varchar(20) NOT NULL DEFAULT 'Active',
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE admin_logs (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    admin_id INT NULL,
+    action_type VARCHAR(50),
+    details TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 --
 -- Dumping data for table `admins`
 --
 
-INSERT INTO `admins` (`admin_id`, `admin_name`, `authority_level`, `auth_key`, `updated_at`) VALUES
-(1, 'Kervie Balolong', 'Master', 'delete123', '2026-03-09 03:58:47');
+INSERT INTO `admins` (`admin_id`, `admin_name`, `authority_level`, `auth_key`, `admin_status`, `updated_at`) VALUES
+(1, 'Kervie Balolong', 'Master', 'delete123', 'Active', '2026-03-09 03:58:47');
 
 -- --------------------------------------------------------
 
@@ -217,3 +226,4 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+

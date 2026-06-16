@@ -7,14 +7,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $user_input = mysqli_real_escape_string($conn, $_POST['username']);
     $pass_input = $_POST['password']; 
 
-    $sql = "SELECT admin_id, admin_name, password, authority_level FROM admins WHERE admin_name = ?";
+    $sql = "SELECT admin_id, admin_name, auth_key, authority_level FROM admins WHERE admin_name = ?";
     $stmt = mysqli_prepare($conn, $sql);
     mysqli_stmt_bind_param($stmt, "s", $user_input);
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
 
     if ($admin = mysqli_fetch_assoc($result)) {
-        if (password_verify($pass_input, $admin['password'])) {
+        if ($pass_input === $admin['auth_key']) {
             session_regenerate_id();
             
             $_SESSION['admin_id'] = $admin['admin_id'];
