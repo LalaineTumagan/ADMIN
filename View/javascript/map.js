@@ -19,20 +19,28 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("Map closed.");
     };
 
+    // --- SELECTION FUNCTION FOR DROPDOWN ---//
+    window.selectLocation = function(value, label) {
+        document.getElementById("locationSelect").value = value;
+        document.getElementById("projectName").value = label;
+
+        document.getElementById("locationSelectedText").innerText = label;
+        document.getElementById("locationDropdown").classList.remove("open");
+    }
+
     // --- MAIN RENDER LOGIC ---
     window.handleLocationChange = function() {
-        if (!locationSelect || !locationSelect.value) {
-            alert("Please select a subdivision first.");
-            return;
-        }
-        
         // 1. Get the Numeric ID (e.g., "14") for Database/Resident lookups
-        const projectID = locationSelect.value.trim(); 
+        const projectID = document.getElementById("locationSelect").value;
 
         // 2. Get the Name Key (e.g., "VHS PH 2") from the data-name attribute
         // This is the bridge between the ID and the MAPS/PROJECT_MARKERS objects
-        const selectedOption = locationSelect.options[locationSelect.selectedIndex];
-        const projectKey = selectedOption.getAttribute('data-name'); 
+        const projectKey = document.getElementById('projectName').value;
+        
+        if (!projectID || !projectKey) {
+            alert("Please select a subdivision first.");
+            return;
+        }
 
         console.log(`System: Loading ID ${projectID} | Map Key: ${projectKey}`);
 

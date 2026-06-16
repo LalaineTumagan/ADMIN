@@ -155,20 +155,48 @@ function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
 
             <div class="location-selector-section">
                 <h2 class="section-title">Project Selection</h2>
+
                 <div class="selector-wrapper" style="display: flex; gap: 15px; margin-top: 15px;">
-                    <select id="locationSelect" class="header-select">
-                        <option value="">-- Select Project --</option>
-                        <?php 
-                        $projects->data_seek(0); 
-                        while($p = $projects->fetch_assoc()): ?>
-                            <option value="<?php echo $p['subdivision_id']; ?>" 
-                                    data-name="<?php echo htmlspecialchars($p['project_name']); ?>">
-                                <?php echo htmlspecialchars($p['project_name']); ?>
-                            </option>
-                        <?php endwhile; ?>
-                    </select>
+
+                    <!-- CUSTOM DROPDOWN -->
+                    <div class="custom-dropdown" id="locationDropdown">
+
+                        <div class="dropdown-selected" onclick="toggleLocationDropdown()">
+                            <span id="locationSelectedText">-- Select Project --</span>
+                            <span>▼</span>
+                        </div>
+
+                        <div class="dropdown-menu">
+
+                            <!-- default option -->
+                            <div class="dropdown-item"
+                                onclick="selectLocation('', '-- Select Project --')">
+                                -- Select Project --
+                            </div>
+
+                            <?php 
+                            $projects->data_seek(0); 
+                            while($p = $projects->fetch_assoc()): ?>
+
+                                <div class="dropdown-item"
+                                    onclick="selectLocation(
+                                        '<?= $p['subdivision_id'] ?>',
+                                        '<?= htmlspecialchars($p['project_name']) ?>'
+                                    )">
+                                    <?= htmlspecialchars($p['project_name']) ?>
+                                </div>
+
+                            <?php endwhile; ?>
+
+                        </div>
+
+                        <input type="hidden" id="locationSelect" name="subdivision_id">
+                        <input type="hidden" id="projectName">
+
+                    </div>
 
                     <button onclick="handleLocationChange()" class="btn-load">Load Project</button>
+
                 </div>
             </div>
 
@@ -731,6 +759,27 @@ function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
         (window.residents ? window.residents.length : 0) + " residents and " + 
         (window.auditLogs ? window.auditLogs.length : 0) + " logs loaded."
     );
+
+    // Dropdown Event
+    function toggleLocationDropdown() {
+        document.getElementById("locationDropdown").classList.toggle("open");
+    }
+
+    function selectLocation(value, label) {
+        document.getElementById("locationSelect").value = value;
+        document.getElementById("locationSelectedText").innerText = label;
+
+        document.getElementById("locationDropdown").classList.remove("open");
+    }
+
+    // close dropdown when clicking outside
+    document.addEventListener("click", function(e) {
+        const dropdown = document.getElementById("locationDropdown");
+
+        if (!dropdown.contains(e.target)) {
+            dropdown.classList.remove("open");
+        }
+    });
 </script>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
