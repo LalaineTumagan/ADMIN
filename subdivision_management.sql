@@ -30,8 +30,9 @@ SET time_zone = "+00:00";
 CREATE TABLE `admins` (
   `admin_id` int(11) NOT NULL,
   `admin_name` varchar(100) DEFAULT NULL,
-  `authority_level` enum('Master','Admin') DEFAULT 'Admin',
+  `authority_level` enum('Master','Admin', 'Staff') DEFAULT 'Admin',
   `auth_key` varchar(255) NOT NULL,
+  `password` varchar(255) NOT NULL,
   `admin_status` varchar(20) NOT NULL DEFAULT 'Active',
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -48,8 +49,10 @@ CREATE TABLE admin_logs (
 -- Dumping data for table `admins`
 --
 
-INSERT INTO `admins` (`admin_id`, `admin_name`, `authority_level`, `auth_key`, `admin_status`, `updated_at`) VALUES
-(1, 'Kervie Balolong', 'Master', 'delete123', 'Active', '2026-03-09 03:58:47');
+INSERT INTO `admins`
+(`admin_id`, `admin_name`, `authority_level`, `auth_key`, `password`, `admin_status`, `updated_at`)
+VALUES
+(1, 'Kervie Balolong', 'Master', 'delete123', 'your_hashed_password_here', 'Active', '2026-03-09 03:58:47');
 
 -- --------------------------------------------------------
 

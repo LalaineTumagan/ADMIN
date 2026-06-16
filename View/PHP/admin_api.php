@@ -13,10 +13,19 @@ if (!isset($_SESSION['admin_id'])) {
 /**
  * HELPER FUNCTION: Audit Logging
  */
-function insert_audit_log($conn, $action_type, $details) {
-    $admin_id = $_SESSION['admin_id'] ?? 0; 
-    $stmt = $conn->prepare("INSERT INTO admin_logs (admin_id, action_type, details) VALUES (?, ?, ?)");
+function insert_audit_log($conn, $admin_id, $action_type, $details) {
+
+    $stmt = $conn->prepare("
+        INSERT INTO admin_logs (admin_id, action_type, details)
+        VALUES (?, ?, ?)
+    ");
+
+    if (!$stmt) {
+        die("Prepare failed: " . $conn->error);
+    }
+
     $stmt->bind_param("iss", $admin_id, $action_type, $details);
+
     return $stmt->execute();
 }
 
@@ -35,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name        = trim($_POST['admin_name'] ?? '');
         $newAuthKey  = trim($_POST['auth_key_to_save'] ?? ''); // THE KEY BEING SAVED TO THE ACCOUNT
         $password    = $_POST['password'] ?? '';
-        $status      = trim($_POST['admin_status'] ?? 'Staff'); // Default to Staff status per your DB
+        $status      = trim($_POST['admin_status'] ?? 'Active');
         $newLevel    = ucfirst(strtolower(trim($_POST['authority_level'] ?? 'Staff')));
 
         if (!in_array($newLevel, ['Master', 'Staff'])) { $newLevel = 'Staff'; }
@@ -52,11 +61,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $hashedPass = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $conn->prepare("INSERT INTO admins (admin_name, auth_key, password, authority_level, admin_status) VALUES (?, ?, ?, ?, ?)");
-            $stmt->bind_param("sssss", $name, $newAuthKey, $hashedPass, $newLevel, $status);
-            
+
+            $stmt = $conn->prepare("
+                INSERT INTO admins (admin_name, auth_key, password, authority_level, admin_status)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+
+            if (!$stmt) {
+                die("Prepare failed: " . $conn->error);
+            }
+
+            $stmt->bind_param(
+                "sssss",
+                $name,
+                $newAuthKey,
+                $hashedPass,
+                $newLevel,
+                $status
+            );
+
             if ($stmt->execute()) {
-                insert_audit_log($conn, "CREATED", "Added admin: $name as $newLevel");
+                insert_audit_log($conn, $_SESSION['admin_id'], "CREATED", "Added admin: $name as $newLevel");
                 echo json_encode(['success' => true]);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Database error: ' . $conn->error]);
@@ -95,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($stmt->execute()) {
-                insert_audit_log($conn, "UPDATED", "Updated admin: $name");
+                insert_audit_log($conn, $_SESSION['admin_id'], "UPDATED", "Updated admin: $name");
                 echo json_encode(['success' => true]);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Update failed.']);

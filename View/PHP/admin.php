@@ -100,10 +100,17 @@ $admins = $conn->query("SELECT admin_id, admin_name, authority_level, admin_stat
 /**
  * 6. SYSTEM UTILITIES
  */
-function insert_audit_log($conn, $admin_name, $action_type, $module, $details) {
-    $ip = $_SERVER['REMOTE_ADDR'];
-    $stmt = $conn->prepare("INSERT INTO admin_logs (admin_id, action_type, details) VALUES ((SELECT admin_id FROM admins WHERE admin_name = ? LIMIT 1), ?, ?)");
-    $stmt->bind_param("sss", $admin_name, $action_type, $details);
+function insert_audit_log($conn, $admin_id, $action_type, $details) {
+    $stmt = $conn->prepare("
+        INSERT INTO admin_logs (admin_id, action_type, details)
+        VALUES (?, ?, ?)
+    ");
+
+    if (!$stmt) {
+        die("Prepare failed: " . $conn->error);
+    }
+
+    $stmt->bind_param("iss", $admin_id, $action_type, $details);
     return $stmt->execute();
 }
 ?>
